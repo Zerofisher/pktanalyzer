@@ -190,6 +190,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.chatMessages[m.aiStreamingMsgID].Content = m.aiStreamContent
 				}
 			}
+
+			// Check if the response contains a confirmation request
+			if strings.Contains(m.aiStreamContent, "[CONFIRMATION_REQUIRED]") {
+				if m.aiAgent != nil && m.aiAgent.HasPendingConfirmation() {
+					m.pendingConfirmation = m.aiAgent.GetPendingConfirmation()
+					m.showConfirmDialog = true
+				}
+			}
+
 			m.aiStreamingMsgID = -1
 			m.aiStreamContent = ""
 			return m, nil
@@ -260,6 +269,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case tea.KeyMsg:
+		// Handle confirmation dialog first (highest priority)
+		if m.showConfirmDialog && m.pendingConfirmation != nil {
+			switch msg.String() {
+			case "y", "Y":
+				// Grant authorization for this session
+				if m.aiAgent != nil {
+					m.aiAgent.GrantAuthorization(true)
+					// Retry the tool call
+					result, err := m.aiAgent.RetryLastToolCall()
+					if err != nil {
+						m.AddChatMessage("system", "重试失败: "+err.Error(), true)
+					} else {
+						// Update the last message with the result
+						m.AddChatMessage("assistant", "✅ 已授权\n\n"+result, false)
+					}
+				}
+				m.showConfirmDialog = false
+				m.pendingConfirmation = nil
+				return m, nil
+			case "n", "N", "esc":
+				// Deny authorization
+				if m.aiAgent != nil {
+					m.aiAgent.DenyAuthorization()
+				}
+				m.AddChatMessage("system", "❌ 用户拒绝了显示原始数据的请求", false)
+				m.showConfirmDialog = false
+				m.pendingConfirmation = nil
+				return m, nil
+			}
+			// Don't process other keys while dialog is open
+			return m, nil
+		}
+
 		// Handle chat input mode with textinput
 		if m.chatInputActive {
 			switch msg.String() {

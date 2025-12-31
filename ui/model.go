@@ -74,6 +74,10 @@ type Model struct {
 	aiStreamContent  string                   // Accumulating streaming response content
 	aiStreamingMsgID int                      // Index of the message being streamed (-1 if none)
 
+	// Authorization confirmation dialog
+	showConfirmDialog   bool                        // Whether to show confirmation dialog
+	pendingConfirmation *agent.ConfirmationRequest  // Current pending confirmation
+
 	// Status message (for save operations, etc.)
 	statusMessage string
 	statusIsError bool

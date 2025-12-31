@@ -14,19 +14,21 @@ type Policy struct {
 	MaxToolsPerTurn   int           // Maximum tools per single turn (default 5)
 	ToolTimeout       time.Duration // Timeout for each tool execution (default 30s)
 	ContinueOnError   bool          // Whether to continue if a tool fails (default true)
-	TrimOldMessages   bool          // Whether to trim old messages to save context (default false)
-	MaxMessagesKept   int           // Max messages to keep when trimming (default 50)
+	TrimOldMessages   bool          // Whether to trim old messages to save context (default true for cost control)
+	MaxMessagesKept   int           // Max messages to keep when trimming (default 30 for drift control)
+	MaxTotalToolCalls int           // Maximum total tool calls across all iterations (default 20)
 }
 
-// DefaultPolicy returns a sensible default policy
+// DefaultPolicy returns a sensible default policy with cost/drift controls enabled
 func DefaultPolicy() *Policy {
 	return &Policy{
-		MaxIterations:   10,
-		MaxToolsPerTurn: 5,
-		ToolTimeout:     30 * time.Second,
-		ContinueOnError: true,
-		TrimOldMessages: false,
-		MaxMessagesKept: 50,
+		MaxIterations:     10,
+		MaxToolsPerTurn:   5,
+		ToolTimeout:       30 * time.Second,
+		ContinueOnError:   true,
+		TrimOldMessages:   true,  // P0-3: Enable by default to prevent context explosion
+		MaxMessagesKept:   30,    // P0-3: Reduced from 50 to prevent drift
+		MaxTotalToolCalls: 20,    // P0-3: Prevent infinite tool call loops
 	}
 }
 
@@ -35,13 +37,14 @@ type ToolExecutor interface {
 	Execute(ctx context.Context, name string, args map[string]any) (string, error)
 }
 
-// Agent implements the ReAct loop
+// Agent implements the ReAct loop with cost controls
 type Agent struct {
-	client   llm.Client
-	tools    []llm.Tool
-	executor ToolExecutor
-	policy   *Policy
-	messages []llm.Message
+	client         llm.Client
+	tools          []llm.Tool
+	executor       ToolExecutor
+	policy         *Policy
+	messages       []llm.Message
+	totalToolCalls int // P0-3: Track total tool calls for cost control
 }
 
 // NewAgent creates a new ReAct agent
@@ -79,6 +82,11 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 
 	// ReAct loop
 	for iteration := 0; iteration < a.policy.MaxIterations; iteration++ {
+		// P0-3: Check total tool calls limit
+		if a.policy.MaxTotalToolCalls > 0 && a.totalToolCalls >= a.policy.MaxTotalToolCalls {
+			return "", fmt.Errorf("已达到最大工具调用次数限制 (%d)，请缩小查询范围或使用更具体的过滤条件", a.policy.MaxTotalToolCalls)
+		}
+
 		// Prepare request
 		req := &llm.ChatRequest{
 			Messages: a.messages,
@@ -107,6 +115,16 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 			toolCalls = toolCalls[:a.policy.MaxToolsPerTurn]
 		}
 
+		// P0-3: Check if this batch would exceed the limit
+		if a.policy.MaxTotalToolCalls > 0 && a.totalToolCalls+len(toolCalls) > a.policy.MaxTotalToolCalls {
+			remaining := a.policy.MaxTotalToolCalls - a.totalToolCalls
+			if remaining > 0 {
+				toolCalls = toolCalls[:remaining]
+			} else {
+				return "", fmt.Errorf("已达到最大工具调用次数限制 (%d)", a.policy.MaxTotalToolCalls)
+			}
+		}
+
 		// Add assistant message with tool calls
 		a.messages = append(a.messages, llm.Message{
 			Role:      llm.RoleAssistant,
@@ -116,6 +134,8 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 
 		// Execute tools and collect results
 		for _, tc := range toolCalls {
+			a.totalToolCalls++ // P0-3: Increment counter
+
 			result, err := a.executeToolWithTimeout(ctx, tc)
 
 			isError := err != nil
@@ -212,6 +232,7 @@ func (a *Agent) ClearHistory() {
 	} else {
 		a.messages = make([]llm.Message, 0)
 	}
+	a.totalToolCalls = 0 // P0-3: Reset tool call counter
 }
 
 // Provider returns the underlying LLM provider
@@ -251,6 +272,18 @@ func (a *Agent) runStreamLoop(ctx context.Context, eventChan chan<- StreamEvent)
 	defer close(eventChan)
 
 	for iteration := 0; iteration < a.policy.MaxIterations; iteration++ {
+		// P0-3: Check total tool calls limit
+		if a.policy.MaxTotalToolCalls > 0 && a.totalToolCalls >= a.policy.MaxTotalToolCalls {
+			eventChan <- StreamEvent{
+				StreamEvent: llm.StreamEvent{
+					Type:  llm.StreamEventError,
+					Error: fmt.Errorf("已达到最大工具调用次数限制 (%d)，请缩小查询范围", a.policy.MaxTotalToolCalls),
+				},
+				Iteration: iteration,
+			}
+			return
+		}
+
 		// Prepare request
 		req := &llm.ChatRequest{
 			Messages: a.messages,
@@ -340,6 +373,8 @@ func (a *Agent) runStreamLoop(ctx context.Context, eventChan chan<- StreamEvent)
 
 		// Execute tools and collect results
 		for _, tc := range toolCalls {
+			a.totalToolCalls++ // P0-3: Increment counter
+
 			// Notify tool execution start
 			eventChan <- StreamEvent{
 				StreamEvent: llm.StreamEvent{

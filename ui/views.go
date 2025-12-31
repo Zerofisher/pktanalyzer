@@ -7,6 +7,7 @@ import (
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/stream"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) renderPacketList() string {
@@ -808,7 +809,10 @@ func (m Model) renderChatView() string {
 	sb.WriteString(strings.Repeat("─", m.width))
 	sb.WriteString("\n")
 
-	if m.aiProcessing {
+	// Show confirmation dialog if active
+	if m.showConfirmDialog && m.pendingConfirmation != nil {
+		sb.WriteString(m.renderConfirmationDialog())
+	} else if m.aiProcessing {
 		sb.WriteString(inputStyle.Width(m.width).Render("⏳ AI 正在处理..."))
 	} else if m.chatInputActive {
 		// Use textinput component for input
@@ -816,6 +820,32 @@ func (m Model) renderChatView() string {
 	} else {
 		sb.WriteString(inputStyle.Width(m.width).Render("> 按 'i' 开始输入"))
 	}
+
+	return sb.String()
+}
+
+// renderConfirmationDialog renders the authorization confirmation dialog
+func (m Model) renderConfirmationDialog() string {
+	if m.pendingConfirmation == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	// Dialog box with warning style
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("226")). // Yellow
+		Padding(1, 2).
+		Width(m.width - 4)
+
+	var content strings.Builder
+	content.WriteString("⚠️  授权确认\n\n")
+	content.WriteString(m.pendingConfirmation.Description)
+	content.WriteString("\n\n")
+	content.WriteString("按 [Y] 允许 (本次会话有效)  |  按 [N] 或 [Esc] 拒绝")
+
+	sb.WriteString(dialogStyle.Render(content.String()))
 
 	return sb.String()
 }

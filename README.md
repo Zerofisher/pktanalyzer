@@ -23,7 +23,7 @@
 | 数据链路层 | Ethernet                                                                             |
 | 网络层     | IPv4, IPv6, ARP, ICMP, ICMPv6, IGMP                                                  |
 | 传输层     | TCP, UDP                                                                             |
-| 应用层     | DNS, HTTP/1.1, **HTTP/2**, TLS/HTTPS, NBNS, LLMNR, mDNS, SSDP, SRVLOC, WS-Discovery, DHCP, NTP, SNMP |
+| 应用层     | DNS, HTTP/1.1, **HTTP/2**, **WebSocket**, TLS/HTTPS, NBNS, LLMNR, mDNS, SSDP, SRVLOC, WS-Discovery, DHCP, NTP, SNMP |
 
 ### HTTP/2 支持
 
@@ -34,6 +34,17 @@ pktanalyzer 支持完整的 HTTP/2 协议解析：
 - **流多路复用**: 跟踪和管理 HTTP/2 连接中的多个并发流
 - **请求/响应配对**: 自动将请求和响应关联到对应的流
 - **ALPN 检测**: 通过 TLS ALPN 扩展自动检测 HTTP/2 协议协商
+
+### WebSocket 支持
+
+pktanalyzer 支持完整的 WebSocket 协议解析（RFC 6455）：
+
+- **握手检测**: 自动检测 HTTP Upgrade 握手，验证 Sec-WebSocket-Key/Accept
+- **帧解析**: 支持所有 WebSocket 帧类型 (TEXT, BINARY, CLOSE, PING, PONG, CONTINUATION)
+- **掩码处理**: 自动解码客户端发送的掩码数据
+- **消息重组**: 将分片帧重组为完整消息
+- **扩展长度**: 支持 16 位和 64 位扩展 payload 长度
+- **关闭码解析**: 解析并显示 WebSocket 关闭状态码和原因
 
 ## 安装
 
@@ -534,6 +545,7 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 - DNS: 天蓝色
 - HTTP: 浅绿色
 - HTTP/2: 粉色
+- WebSocket: 紫色
 - TLS: 金色
 - HTTPS (已解密): 亮绿色
 
@@ -564,7 +576,8 @@ pktanalyzer/
 │   ├── http.go          # HTTP/1.1 解析
 │   ├── http2.go         # HTTP/2 帧解析器
 │   ├── hpack.go         # HPACK 头部压缩/解压
-│   └── http2_stream.go  # HTTP/2 流管理和连接状态
+│   ├── http2_stream.go  # HTTP/2 流管理和连接状态
+│   └── websocket.go     # WebSocket 协议解析 (RFC 6455)
 ├── filter/
 │   └── filter.go        # 显示过滤器 (expr-lang/expr)
 ├── expert/

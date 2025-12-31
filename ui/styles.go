@@ -18,15 +18,16 @@ var (
 	systemMsgColor    = lipgloss.Color("#FFD700") // Gold
 
 	// Protocol colors
-	tcpColor   = lipgloss.Color("#7CB9E8")
-	udpColor   = lipgloss.Color("#72BF6A")
-	icmpColor  = lipgloss.Color("#FFB347")
-	arpColor   = lipgloss.Color("#DDA0DD")
-	dnsColor   = lipgloss.Color("#87CEEB")
-	httpColor  = lipgloss.Color("#98FB98")
-	tlsColor   = lipgloss.Color("#FFD700") // Gold
-	httpsColor = lipgloss.Color("#00FF7F") // Spring Green
-	http2Color = lipgloss.Color("#FF69B4") // Hot Pink for HTTP/2
+	tcpColor       = lipgloss.Color("#7CB9E8")
+	udpColor       = lipgloss.Color("#72BF6A")
+	icmpColor      = lipgloss.Color("#FFB347")
+	arpColor       = lipgloss.Color("#DDA0DD")
+	dnsColor       = lipgloss.Color("#87CEEB")
+	httpColor      = lipgloss.Color("#98FB98")
+	tlsColor       = lipgloss.Color("#FFD700") // Gold
+	httpsColor     = lipgloss.Color("#00FF7F") // Spring Green
+	http2Color     = lipgloss.Color("#FF69B4") // Hot Pink for HTTP/2
+	websocketColor = lipgloss.Color("#9370DB") // Medium Purple for WebSocket
 
 	// Styles
 	titleStyle = lipgloss.NewStyle().
@@ -114,6 +115,9 @@ var (
 
 	http2Style = lipgloss.NewStyle().
 			Foreground(http2Color)
+
+	websocketStyle = lipgloss.NewStyle().
+			Foreground(websocketColor)
 )
 
 func getProtocolStyle(protocol string) lipgloss.Style {
@@ -134,6 +138,8 @@ func getProtocolStyle(protocol string) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(tlsColor)
 	case "HTTPS":
 		return lipgloss.NewStyle().Foreground(httpsColor)
+	case "WebSocket":
+		return lipgloss.NewStyle().Foreground(websocketColor)
 	default:
 		return normalStyle
 	}

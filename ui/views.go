@@ -360,6 +360,8 @@ func (m Model) renderStreamList() string {
 			style = selectedStyle.Width(m.width)
 		} else if s.IsHTTP2 {
 			style = http2Style.Width(m.width) // Highlight HTTP/2 streams
+		} else if s.IsWebSocket {
+			style = websocketStyle.Width(m.width) // Highlight WebSocket streams
 		}
 
 		sb.WriteString(style.Render(line))
@@ -460,6 +462,122 @@ func (m Model) renderStreamDetail() string {
 					lines = append(lines, dimStyle.Render(fmt.Sprintf("    Response body: %d bytes", len(h2s.ResponseData))))
 				}
 				lines = append(lines, "")
+			}
+		}
+	} else if s.IsWebSocket || stream.IsWebSocketUpgrade(s.GetClientData()) {
+		// WebSocket display
+		if s.WebSocketParser == nil {
+			s.InitWebSocketParser()
+			s.ParseWebSocket()
+		}
+
+		wsConn := s.WebSocketParser.Connection
+
+		// Handshake info
+		if wsConn.Handshake != nil {
+			lines = append(lines, layerHeaderStyle.Render("▼ WebSocket Handshake"))
+			h := wsConn.Handshake
+			lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  URI: %s", h.RequestURI)))
+			if h.Host != "" {
+				lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Host: %s", h.Host)))
+			}
+			if h.Origin != "" {
+				lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Origin: %s", h.Origin)))
+			}
+			if h.SelectedSubprotocol != "" {
+				lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Subprotocol: %s", h.SelectedSubprotocol)))
+			}
+			if h.PermessageDeflate {
+				lines = append(lines, layerDetailStyle.Render("  Compression: permessage-deflate"))
+			}
+			validStr := "✓ Valid"
+			if !h.IsValid {
+				validStr = "✗ Invalid"
+			}
+			lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Handshake: %s", validStr)))
+			lines = append(lines, "")
+		}
+
+		// Connection summary
+		lines = append(lines, layerHeaderStyle.Render("▼ WebSocket Connection"))
+		lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Frames: %d (Client: %d, Server: %d)",
+			len(wsConn.Frames), wsConn.ClientFrames, wsConn.ServerFrames)))
+		lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Messages: %d (Text: %d, Binary: %d)",
+			len(wsConn.Messages), wsConn.TextMessages, wsConn.BinaryMessages)))
+		lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Bytes: C→S %d, S→C %d",
+			wsConn.ClientBytes, wsConn.ServerBytes)))
+		if wsConn.PingCount > 0 || wsConn.PongCount > 0 {
+			lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Ping/Pong: %d/%d", wsConn.PingCount, wsConn.PongCount)))
+		}
+		if wsConn.Closed {
+			lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  Closed: code=%d (%s) reason=%q",
+				wsConn.CloseCode, stream.GetWebSocketCloseReason(wsConn.CloseCode), wsConn.CloseReason)))
+		}
+		lines = append(lines, "")
+
+		// Show WebSocket frames
+		lines = append(lines, layerHeaderStyle.Render("▼ WebSocket Frames"))
+		for i, frame := range wsConn.Frames {
+			if i >= 50 { // Limit display
+				lines = append(lines, dimStyle.Render(fmt.Sprintf("  ... and %d more frames", len(wsConn.Frames)-i)))
+				break
+			}
+			lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  %s", frame.Summary())))
+
+			// Show payload preview for text frames
+			if frame.Opcode == stream.OpcodeText && len(frame.Payload) > 0 {
+				text := frame.GetPayloadText()
+				if len(text) > 80 {
+					text = text[:77] + "..."
+				}
+				lines = append(lines, dimStyle.Render(fmt.Sprintf("    → %s", text)))
+			}
+
+			// Show close reason
+			if frame.Opcode == stream.OpcodeClose {
+				code, reason := frame.GetCloseCode()
+				if code > 0 {
+					lines = append(lines, dimStyle.Render(fmt.Sprintf("    → Close code: %d (%s) %s",
+						code, stream.GetWebSocketCloseReason(code), reason)))
+				}
+			}
+		}
+		lines = append(lines, "")
+
+		// Show messages (assembled from frames)
+		if len(wsConn.Messages) > 0 {
+			lines = append(lines, layerHeaderStyle.Render("▼ WebSocket Messages"))
+			for i, msg := range wsConn.Messages {
+				if i >= 20 { // Limit display
+					lines = append(lines, dimStyle.Render(fmt.Sprintf("  ... and %d more messages", len(wsConn.Messages)-i)))
+					break
+				}
+				fragStr := ""
+				if len(msg.Frames) > 1 {
+					fragStr = fmt.Sprintf(" (%d fragments)", len(msg.Frames))
+				}
+				lines = append(lines, layerDetailStyle.Render(fmt.Sprintf("  [%d] %s %d bytes%s",
+					i+1, msg.Opcode, len(msg.Payload), fragStr)))
+
+				// Show text message preview
+				if msg.Opcode == stream.OpcodeText && len(msg.Payload) > 0 {
+					text := string(msg.Payload)
+					if len(text) > 100 {
+						text = text[:97] + "..."
+					}
+					// Format multiline text
+					textLines := strings.Split(text, "\n")
+					for j, tl := range textLines {
+						if j >= 3 {
+							lines = append(lines, dimStyle.Render("    ..."))
+							break
+						}
+						if len(tl) > 80 {
+							tl = tl[:77] + "..."
+						}
+						lines = append(lines, dimStyle.Render(fmt.Sprintf("    %s", tl)))
+					}
+				}
 			}
 		}
 	} else {

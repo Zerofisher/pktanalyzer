@@ -111,10 +111,12 @@ type TCPStream struct {
 	DirectionKnown bool
 
 	// Protocol detection
-	Protocol      string // "HTTP/1.1", "HTTP/2", "TLS", etc.
-	IsHTTP2       bool
-	HTTP2Parser   *HTTP2Parser // HTTP/2 parser if this is an HTTP/2 stream
-	ALPNProtocol  string       // Negotiated ALPN protocol (from TLS)
+	Protocol        string // "HTTP/1.1", "HTTP/2", "TLS", "WebSocket", etc.
+	IsHTTP2         bool
+	HTTP2Parser     *HTTP2Parser     // HTTP/2 parser if this is an HTTP/2 stream
+	ALPNProtocol    string           // Negotiated ALPN protocol (from TLS)
+	IsWebSocket     bool             // WebSocket connection detected
+	WebSocketParser *WebSocketParser // WebSocket parser if this is a WebSocket stream
 }
 
 // TotalBytes returns total bytes in both directions
@@ -192,6 +194,13 @@ func (s *TCPStream) DetectProtocol() string {
 		}
 	}
 
+	// Check for WebSocket upgrade (before generic HTTP check)
+	if IsWebSocketUpgrade(clientData) && IsWebSocketResponse(serverData) {
+		s.IsWebSocket = true
+		s.Protocol = "WebSocket"
+		return "WebSocket"
+	}
+
 	// Check for HTTP/1.x
 	if len(clientData) > 0 {
 		// Simple heuristic: HTTP methods
@@ -263,6 +272,55 @@ func (s *TCPStream) GetHTTP2Summary() string {
 		return ""
 	}
 	return s.HTTP2Parser.Connection.Summary()
+}
+
+// InitWebSocketParser initializes the WebSocket parser for this stream
+func (s *TCPStream) InitWebSocketParser() {
+	if s.WebSocketParser == nil {
+		s.WebSocketParser = NewWebSocketParser()
+		s.IsWebSocket = true
+		s.Protocol = "WebSocket"
+	}
+}
+
+// ParseWebSocket parses the stream as WebSocket
+func (s *TCPStream) ParseWebSocket() error {
+	if s.WebSocketParser == nil {
+		s.InitWebSocketParser()
+	}
+	return s.WebSocketParser.ParseStream(s)
+}
+
+// GetWebSocketFrames returns all WebSocket frames if this is a WebSocket connection
+func (s *TCPStream) GetWebSocketFrames() []*WebSocketFrame {
+	if s.WebSocketParser == nil {
+		return nil
+	}
+	return s.WebSocketParser.Connection.Frames
+}
+
+// GetWebSocketMessages returns all complete WebSocket messages
+func (s *TCPStream) GetWebSocketMessages() []*WebSocketMessage {
+	if s.WebSocketParser == nil {
+		return nil
+	}
+	return s.WebSocketParser.Connection.Messages
+}
+
+// GetWebSocketSummary returns a summary of WebSocket content
+func (s *TCPStream) GetWebSocketSummary() string {
+	if s.WebSocketParser == nil {
+		return ""
+	}
+	return s.WebSocketParser.Connection.Summary()
+}
+
+// GetWebSocketHandshake returns the WebSocket handshake info
+func (s *TCPStream) GetWebSocketHandshake() *WebSocketHandshake {
+	if s.WebSocketParser == nil {
+		return nil
+	}
+	return s.WebSocketParser.Connection.Handshake
 }
 
 // StreamCallbacks contains optional callbacks for stream events

@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: auto
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install libpcap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          go build -o dist/pktanalyzer .
+
+      - name: Package artifact
+        run: |
+          ARCHIVE="pktanalyzer_${GITHUB_REF_NAME}_linux_amd64.tar.gz"
+          tar -czf "dist/${ARCHIVE}" -C dist pktanalyzer
+          echo "ARCHIVE_PATH=dist/${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE_PATH }}
+          fail_on_unmatched_files: true

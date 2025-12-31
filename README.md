@@ -12,6 +12,7 @@
 - **CLI 导出**: tshark 兼容的命令行输出 (`-T text/json/fields`)
 - **统计分析**: 端点统计、会话统计、I/O 统计 (`-z`)
 - **流追踪**: 导出 TCP 流数据 (`-z follow,tcp,ascii`)
+- **专家信息系统**: TCP/DNS/HTTP 异常检测，类似 Wireshark Expert Info (`-z expert`)
 - **AI 智能分析**: 集成 Claude/OpenAI，智能解释数据包和网络行为
 - **TUI 界面**: 交互式终端界面，支持滚动、过滤、详情查看、分屏显示
 
@@ -192,6 +193,60 @@ sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
 # Raw 格式（直接输出字节）
 ./pktanalyzer -r capture.pcapng -z follow,tcp,raw,1 > stream.bin
 ```
+
+### 专家信息系统 (`-z expert`)
+
+分析网络数据包中的异常和问题，类似 Wireshark 的 Expert Information 功能：
+
+```bash
+# 显示所有专家信息
+./pktanalyzer -r capture.pcapng -z expert
+
+# 只显示警告和错误（过滤 Note 级别以下）
+./pktanalyzer -r capture.pcapng -z expert,warning
+
+# 只显示错误
+./pktanalyzer -r capture.pcapng -z expert,error
+```
+
+**检测的 TCP 异常**:
+
+| 异常类型 | 严重级别 | 说明 |
+|---------|---------|------|
+| TCP Retransmission | Warning | TCP 重传（200ms+ 后重发相同序列号） |
+| TCP Fast Retransmission | Warning | 快速重传（收到 3 个重复 ACK 后触发） |
+| TCP Spurious Retransmission | Note | 伪重传（数据已被确认后再次发送） |
+| TCP Duplicate ACK | Note | 重复 ACK（相同确认号的 ACK） |
+| TCP Triple Duplicate ACK | Warning | 三次重复 ACK（触发快速重传信号） |
+| TCP Out-of-Order | Warning | 乱序包（序列号小于预期） |
+| TCP Zero Window | Warning | 零窗口（接收方缓冲区满） |
+| TCP Window Update | Note | 窗口更新（零窗口后恢复） |
+| TCP Zero Window Probe | Note | 零窗口探测 |
+| TCP Keep-Alive | Note | 保活探测 |
+| TCP Keep-Alive ACK | Note | 保活响应 |
+| TCP RST | Warning | 连接重置 |
+| TCP Connection Refused | Error | 连接被拒绝（SYN 后收到 RST） |
+| TCP SYN Flood Suspected | Error | 疑似 SYN 洪泛攻击 |
+| TCP Port Scan Suspected | Warning | 疑似端口扫描 |
+
+**检测的 DNS 异常**:
+
+| 异常类型 | 严重级别 | 说明 |
+|---------|---------|------|
+| DNS Query No Response | Warning | DNS 查询无响应（超时 5 秒） |
+| DNS NXDOMAIN | Note | 域名不存在 |
+| DNS SERVFAIL | Warning | 服务器错误 |
+| DNS Query Refused | Warning | 查询被拒绝 |
+
+**检测的 HTTP 异常**:
+
+| 异常类型 | 严重级别 | 说明 |
+|---------|---------|------|
+| HTTP 4xx Client Error | Warning | 客户端错误（400-499） |
+| HTTP 5xx Server Error | Error | 服务器错误（500-599） |
+| HTTP Redirect | Note | 重定向（300-399） |
+| HTTP Slow Response | Warning | 响应缓慢（> 3 秒） |
+| HTTP Request No Response | Warning | 请求无响应 |
 
 ### TCP 流重组 (TUI)
 
@@ -405,7 +460,7 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 | `-V`             | 显示详细协议信息                                         |
 | `-x`             | 显示十六进制 dump                                        |
 | `-e <field>`     | 提取指定字段（配合 `-T fields`）                         |
-| `-z <stats>`     | 统计选项：endpoints, conv,tcp, io,stat, follow,tcp,ascii |
+| `-z <stats>`     | 统计选项：endpoints, conv,tcp, io,stat, follow,tcp,ascii, expert |
 
 ## TUI 快捷键
 
@@ -447,6 +502,17 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 | `i`     | 进入输入模式      |
 | `Enter` | 发送消息          |
 | `Esc`   | 退出输入模式      |
+
+### 专家信息快捷键
+
+| 按键  | 功能                            |
+| ----- | ------------------------------- |
+| `e`   | 切换到专家信息视图              |
+| `1`   | 显示所有级别 (Chat+)            |
+| `2`   | 显示 Note 及以上                |
+| `3`   | 显示 Warning 及以上             |
+| `4`   | 只显示 Error                    |
+| `Esc` | 返回数据包列表                  |
 
 ## 界面说明
 
@@ -501,6 +567,12 @@ pktanalyzer/
 │   └── http2_stream.go  # HTTP/2 流管理和连接状态
 ├── filter/
 │   └── filter.go        # 显示过滤器 (expr-lang/expr)
+├── expert/
+│   ├── types.go         # 专家信息类型定义 (Severity, Group, ExpertInfo)
+│   ├── expert.go        # 专家分析器主程序
+│   ├── tcp.go           # TCP 异常检测 (重传、乱序、零窗口等)
+│   ├── dns.go           # DNS 异常检测 (NXDOMAIN、超时等)
+│   └── http.go          # HTTP 异常检测 (4xx/5xx、慢响应等)
 ├── fields/
 │   └── fields.go        # 协议字段注册表
 ├── export/

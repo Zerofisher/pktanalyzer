@@ -4,9 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/Zerofisher/pktanalyzer/agent"
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/export"
 	"github.com/Zerofisher/pktanalyzer/fields"
 	"github.com/Zerofisher/pktanalyzer/filter"
@@ -14,9 +19,6 @@ import (
 	"github.com/Zerofisher/pktanalyzer/stream"
 	"github.com/Zerofisher/pktanalyzer/tls"
 	"github.com/Zerofisher/pktanalyzer/ui"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // arrayFlags allows multiple -e flags
@@ -57,7 +59,7 @@ func main() {
 	listFields := flag.Bool("G", false, "List available fields (use with 'fields' argument)")
 
 	// Statistics (tshark -z compatible)
-	statsOption := flag.String("z", "", "Statistics: endpoints, conv,tcp, conv,udp, io,stat,<interval>, follow,tcp,ascii,<stream>")
+	statsOption := flag.String("z", "", "Statistics: endpoints, conv,tcp, conv,udp, io,stat,<interval>, follow,tcp,ascii,<stream>, expert")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "PktAnalyzer - Network Packet Analyzer with TLS Decryption and AI\n\n")
@@ -73,6 +75,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s -r <file> -z conv,tcp                                  TCP conversations\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -r <file> -z io,stat,1                                 I/O statistics (1s interval)\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -r <file> -S -z follow,tcp,ascii,1                     Follow TCP stream #1\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -r <file> -z expert                                    Expert analysis (anomaly detection)\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -D                                                     List interfaces\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -G fields                                              List available fields\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Options:\n")
@@ -447,6 +450,12 @@ func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 		}
 	}
 
+	// Check if expert mode
+	if statsOption == "expert" || strings.HasPrefix(statsOption, "expert,") {
+		runExpertMode(packetChan, filterFunc, statsOption)
+		return
+	}
+
 	// Parse stats option
 	statsMgr := stats.NewManager()
 
@@ -484,9 +493,53 @@ func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 		runFollowStream(capturer, statsOption)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown statistics option: %s\n", statsOption)
-		fmt.Fprintf(os.Stderr, "Supported options: endpoints, conv,tcp, conv,udp, io,stat,<interval>, follow,tcp,ascii,<stream>\n")
+		fmt.Fprintf(os.Stderr, "Supported options: endpoints, conv,tcp, conv,udp, io,stat,<interval>, follow,tcp,ascii,<stream>, expert\n")
 		os.Exit(1)
 	}
+}
+
+// runExpertMode runs expert analysis on packets
+func runExpertMode(packetChan <-chan capture.PacketInfo, filterFunc func(*capture.PacketInfo) bool, statsOption string) {
+	analyzer := expert.NewAnalyzer()
+
+	// Parse expert options: expert or expert,<severity>
+	minSeverity := expert.SeverityNote // Default to showing Note and above
+	if strings.HasPrefix(statsOption, "expert,") {
+		severityStr := strings.TrimPrefix(statsOption, "expert,")
+		switch strings.ToLower(severityStr) {
+		case "chat":
+			minSeverity = expert.SeverityChat
+		case "note":
+			minSeverity = expert.SeverityNote
+		case "warning", "warn":
+			minSeverity = expert.SeverityWarning
+		case "error":
+			minSeverity = expert.SeverityError
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown severity level: %s (use: chat, note, warning, error)\n", severityStr)
+			os.Exit(1)
+		}
+	}
+
+	// Process all packets
+	packetCount := 0
+	for pkt := range packetChan {
+		packetCount++
+
+		// Apply display filter
+		if filterFunc != nil && !filterFunc(&pkt) {
+			continue
+		}
+
+		// Analyze packet
+		analyzer.Analyze(&pkt)
+	}
+
+	// Print results
+	fmt.Printf("Analyzed %d packets\n\n", packetCount)
+	analyzer.PrintSummary(os.Stdout)
+	fmt.Println()
+	analyzer.PrintDetails(os.Stdout, minSeverity)
 }
 
 // runFollowStream outputs the data for a specific TCP stream

@@ -2,9 +2,11 @@ package ui
 
 import (
 	"fmt"
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/stream"
 	"strings"
+
+	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/expert"
+	"github.com/Zerofisher/pktanalyzer/stream"
 )
 
 func (m Model) renderPacketList() string {
@@ -202,6 +204,7 @@ func (m Model) renderHelp() string {
 		"  Enter     Toggle detail view",
 		"  x         Toggle hex view",
 		"  s         Toggle stream view (TCP flow)",
+		"  e         Toggle expert view (anomaly detection)",
 		"  Esc       Return to list view",
 		"",
 		"Filter:",
@@ -268,6 +271,8 @@ func (m Model) renderStatusBar() string {
 		viewName = "Streams"
 	case ViewStreamDetail:
 		viewName = "Stream Detail"
+	case ViewExpert:
+		viewName = "Expert"
 	}
 
 	packets := m.getDisplayPackets()
@@ -873,4 +878,117 @@ func padRight(s string, width int) string {
 	}
 
 	return s + strings.Repeat(" ", width-displayWidth)
+}
+
+// renderExpertView renders the expert information view
+func (m Model) renderExpertView() string {
+	var sb strings.Builder
+
+	analyzer := m.expertAnalyzer
+	if analyzer == nil {
+		return "Expert analysis not available"
+	}
+
+	// Header
+	stats := analyzer.GetStatistics()
+	header := fmt.Sprintf(" 🔍 Expert Information (%d issues found) ", stats.TotalCount)
+	sb.WriteString(titleStyle.Width(m.width).Render(header))
+	sb.WriteString("\n")
+
+	// Summary bar
+	summaryParts := []string{}
+	if stats.CountBySeverity[expert.SeverityError] > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("Errors: %d", stats.CountBySeverity[expert.SeverityError]))
+	}
+	if stats.CountBySeverity[expert.SeverityWarning] > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("Warnings: %d", stats.CountBySeverity[expert.SeverityWarning]))
+	}
+	if stats.CountBySeverity[expert.SeverityNote] > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("Notes: %d", stats.CountBySeverity[expert.SeverityNote]))
+	}
+	if stats.CountBySeverity[expert.SeverityChat] > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("Chat: %d", stats.CountBySeverity[expert.SeverityChat]))
+	}
+
+	summary := strings.Join(summaryParts, " | ")
+	if summary == "" {
+		summary = "No issues detected"
+	}
+	summary += fmt.Sprintf("  [Filter: %s+]", m.expertMinSeverity.String())
+	sb.WriteString(statusStyle.Width(m.width).Render(summary))
+	sb.WriteString("\n")
+
+	// Table header
+	tableHeader := fmt.Sprintf("%-6s %-8s %-10s %-8s %-25s %s",
+		"Packet", "Severity", "Group", "Proto", "Summary", "Details")
+	sb.WriteString(headerStyle.Width(m.width).Render(tableHeader))
+	sb.WriteString("\n")
+
+	// Calculate visible area
+	listHeight := m.height - 10
+	if listHeight < 5 {
+		listHeight = 5
+	}
+
+	// Get filtered infos
+	infos := analyzer.GetInfosBySeverity(m.expertMinSeverity)
+
+	if len(infos) == 0 {
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render("  No issues at this severity level. Press 1-4 to change filter level."))
+		sb.WriteString("\n")
+		sb.WriteString(dimStyle.Render("  1=Error, 2=Warning, 3=Note, 4=Chat (all)"))
+		sb.WriteString("\n")
+		return sb.String()
+	}
+
+	// Render visible expert infos
+	for i := m.expertScroll; i < len(infos) && i < m.expertScroll+listHeight; i++ {
+		info := infos[i]
+
+		// Truncate details
+		details := info.Details
+		maxDetailsLen := m.width - 65
+		if maxDetailsLen < 10 {
+			maxDetailsLen = 10
+		}
+		if len(details) > maxDetailsLen {
+			details = details[:maxDetailsLen-3] + "..."
+		}
+
+		line := fmt.Sprintf("%-6d %-8s %-10s %-8s %-25s %s",
+			info.PacketNum,
+			info.Severity.String(),
+			info.Group,
+			truncateStr(info.Protocol, 8),
+			truncateStr(info.Summary, 25),
+			details)
+
+		// Style based on severity
+		style := normalStyle
+		switch info.Severity {
+		case expert.SeverityError:
+			style = errorStyle
+		case expert.SeverityWarning:
+			style = warningStyle
+		case expert.SeverityNote:
+			style = noteStyle
+		case expert.SeverityChat:
+			style = dimStyle
+		}
+
+		sb.WriteString(style.Width(m.width).Render(line))
+		sb.WriteString("\n")
+	}
+
+	// Fill remaining space
+	for i := len(infos) - m.expertScroll; i < listHeight; i++ {
+		sb.WriteString("\n")
+	}
+
+	// Help hint
+	sb.WriteString(dimStyle.Render("  1-4: Filter level | ↑↓: Scroll | Enter: Go to packet | Esc: Back"))
+	sb.WriteString("\n")
+
+	return sb.String()
 }

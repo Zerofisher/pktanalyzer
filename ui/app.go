@@ -2,11 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/Zerofisher/pktanalyzer/agent"
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
-	"strings"
-	"time"
+	"github.com/Zerofisher/pktanalyzer/expert"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -125,6 +127,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p := capture.PacketInfo(msg)
 			m.packets = append(m.packets, p)
 			m.stats.Update(p)
+
+			// Run expert analysis
+			if m.expertAnalyzer != nil {
+				m.expertAnalyzer.Analyze(&p)
+			}
 
 			// Add packet to AI agent context
 			if m.aiAgent != nil {
@@ -377,6 +384,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.chatScroll > 0 {
 					m.chatScroll--
 				}
+			case ViewExpert:
+				if m.expertScroll > 0 {
+					m.expertScroll--
+				}
 			}
 			return m, nil
 
@@ -400,6 +411,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.streamDetailScroll++
 			case ViewChat:
 				m.chatScroll++
+			case ViewExpert:
+				m.expertScroll++
 			}
 			return m, nil
 
@@ -435,6 +448,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.chatScroll < 0 {
 					m.chatScroll = 0
 				}
+			case ViewExpert:
+				m.expertScroll -= 20
+				if m.expertScroll < 0 {
+					m.expertScroll = 0
+				}
 			}
 			return m, nil
 
@@ -466,6 +484,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.streamDetailScroll += 20
 			case ViewChat:
 				m.chatScroll += 20
+			case ViewExpert:
+				m.expertScroll += 20
 			}
 			return m, nil
 
@@ -485,6 +505,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.streamDetailScroll = 0
 			case ViewChat:
 				m.chatScroll = 0
+			case ViewExpert:
+				m.expertScroll = 0
 			}
 			return m, nil
 
@@ -544,6 +566,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
+		case "e":
+			// Toggle expert view
+			if m.viewMode == ViewExpert {
+				m.viewMode = ViewList
+			} else {
+				m.viewMode = ViewExpert
+				m.expertScroll = 0
+			}
+			return m, nil
+
+		case "1":
+			// Set expert filter to Error only
+			if m.viewMode == ViewExpert {
+				m.expertMinSeverity = expert.SeverityError
+				m.expertScroll = 0
+			}
+			return m, nil
+
+		case "2":
+			// Set expert filter to Warning+
+			if m.viewMode == ViewExpert {
+				m.expertMinSeverity = expert.SeverityWarning
+				m.expertScroll = 0
+			}
+			return m, nil
+
+		case "3":
+			// Set expert filter to Note+
+			if m.viewMode == ViewExpert {
+				m.expertMinSeverity = expert.SeverityNote
+				m.expertScroll = 0
+			}
+			return m, nil
+
+		case "4":
+			// Set expert filter to Chat (all)
+			if m.viewMode == ViewExpert {
+				m.expertMinSeverity = expert.SeverityChat
+				m.expertScroll = 0
+			}
+			return m, nil
+
 		case "w":
 			// Save packets to file
 			packetsToSave := m.packets
@@ -565,6 +629,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case ViewStreamDetail:
 				m.viewMode = ViewStreamList
 			case ViewChat:
+				m.viewMode = ViewList
+			case ViewExpert:
 				m.viewMode = ViewList
 			default:
 				m.viewMode = ViewList
@@ -705,6 +771,8 @@ func (m Model) View() string {
 			sb.WriteString(m.renderStreamDetail())
 		case ViewChat:
 			sb.WriteString(m.renderChatView())
+		case ViewExpert:
+			sb.WriteString(m.renderExpertView())
 		}
 	}
 

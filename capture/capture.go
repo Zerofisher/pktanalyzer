@@ -36,6 +36,7 @@ type PacketInfo struct {
 	TCPSeq     uint32
 	TCPAck     uint32
 	TCPFlags   uint16
+	TCPWindow  uint16
 	TCPPayload []byte
 	StreamKey  string
 }
@@ -272,6 +273,7 @@ func (c *Capturer) parsePacket(packet gopacket.Packet) PacketInfo {
 		info.TCPSeq = tcp.Seq
 		info.TCPAck = tcp.Ack
 		info.TCPFlags = getTCPFlagsValue(tcp)
+		info.TCPWindow = tcp.Window
 		info.TCPPayload = tcp.Payload
 
 		flags := formatTCPFlags(tcp)

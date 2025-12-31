@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/Zerofisher/pktanalyzer/agent"
 	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/stream"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -17,7 +18,8 @@ const (
 	ViewHex
 	ViewStreamList
 	ViewStreamDetail
-	ViewChat // AI chat view
+	ViewChat   // AI chat view
+	ViewExpert // Expert info view
 )
 
 // ChatMessage represents a message in the chat view
@@ -73,8 +75,13 @@ type Model struct {
 	aiStreamingMsgID int                      // Index of the message being streamed (-1 if none)
 
 	// Status message (for save operations, etc.)
-	statusMessage   string
-	statusIsError   bool
+	statusMessage string
+	statusIsError bool
+
+	// Expert analysis
+	expertAnalyzer   *expert.Analyzer
+	expertScroll     int
+	expertMinSeverity expert.Severity // Minimum severity to show
 }
 
 // Stats holds packet statistics
@@ -154,16 +161,18 @@ func NewModel(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, 
 	filterTi.Width = 40
 
 	return Model{
-		packets:          make([]capture.PacketInfo, 0),
-		filteredPkts:     make([]capture.PacketInfo, 0),
-		packetChan:       packetChan,
-		capturer:         capturer,
-		viewMode:         ViewList,
-		isLive:           isLive,
-		chatMessages:     make([]ChatMessage, 0),
-		chatTextInput:    chatTi,
-		filterTextInput:  filterTi,
-		aiStreamingMsgID: -1,
+		packets:           make([]capture.PacketInfo, 0),
+		filteredPkts:      make([]capture.PacketInfo, 0),
+		packetChan:        packetChan,
+		capturer:          capturer,
+		viewMode:          ViewList,
+		isLive:            isLive,
+		chatMessages:      make([]ChatMessage, 0),
+		chatTextInput:     chatTi,
+		filterTextInput:   filterTi,
+		aiStreamingMsgID:  -1,
+		expertAnalyzer:    expert.NewAnalyzer(),
+		expertMinSeverity: expert.SeverityNote, // Default to showing Note and above
 	}
 }
 
@@ -201,4 +210,16 @@ func (m *Model) StreamEnabled() bool {
 	}
 	mgr := m.capturer.GetStreamManager()
 	return mgr != nil && mgr.IsEnabled()
+}
+
+// GetExpertAnalyzer returns the expert analyzer
+func (m *Model) GetExpertAnalyzer() *expert.Analyzer {
+	return m.expertAnalyzer
+}
+
+// AnalyzePacket runs expert analysis on a packet
+func (m *Model) AnalyzePacket(pkt *capture.PacketInfo) {
+	if m.expertAnalyzer != nil {
+		m.expertAnalyzer.Analyze(pkt)
+	}
 }

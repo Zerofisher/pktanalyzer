@@ -96,6 +96,13 @@ var (
 			Foreground(errorColorVal).
 			Bold(true)
 
+	warningStyle = lipgloss.NewStyle().
+			Foreground(warningColor).
+			Bold(true)
+
+	noteStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#87CEEB")) // Light blue
+
 	successStyle = lipgloss.NewStyle().
 			Foreground(accentColor).
 			Bold(true)

@@ -2,7 +2,7 @@
 
 This `CLAUDE.md` is **high leverage**: it is loaded into every session. Keep it short and universally applicable.
 
-`pktanalyzer/` is the **Go module root** (`pktanalyzer/go.mod`). The repo root (`..`) contains sample `.pcapng` captures for local testing.
+`pktanalyzer/` is the **Go module root** (`pktanalyzer/go.mod`). Sample `.pcap/.pcapng` captures are in `examples/` for local testing.
 
 ## How to use this file (HumanLayer-style)
 
@@ -27,9 +27,9 @@ This `CLAUDE.md` is **high leverage**: it is loaded into every session. Keep it 
 From `pktanalyzer/`:
 
 - Build: `go build -o pktanalyzer`
-- Run a capture: `./pktanalyzer -r ../http_google.pcapng`
-- Stream reassembly: `./pktanalyzer -r ../http_google.pcapng -S`
-- AI chat: `ANTHROPIC_API_KEY=... ./pktanalyzer -r ../http_google.pcapng -A`
+- Run a capture: `./pktanalyzer -r examples/http_google.pcapng`
+- Stream reassembly: `./pktanalyzer -r examples/http_google.pcapng -S`
+- AI chat: `ANTHROPIC_API_KEY=... ./pktanalyzer -r examples/http_google.pcapng -A`
 
 Deterministic tools:
 

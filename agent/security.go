@@ -355,6 +355,12 @@ func (s *AuthorizationStore) GrantAuthorization(forSession bool) {
 	}
 }
 
+// GrantSessionAuthorization directly grants session-wide authorization for a type
+// Used for pre-authorizing before any request is made
+func (s *AuthorizationStore) GrantSessionAuthorization(authType AuthorizationType) {
+	s.sessionGrants[authType] = true
+}
+
 // DenyAuthorization denies the pending authorization
 func (s *AuthorizationStore) DenyAuthorization() {
 	if s.pendingRequest != nil {
@@ -385,22 +391,13 @@ func CheckRawDataAuthorization(userInput string, includeRaw bool, authStore *Aut
 		return false, 0, "", false
 	}
 
-	// First check session grants
+	// First check session grants - if already authorized in this session, allow
 	if authStore != nil && authStore.IsAuthorized(AuthTypeRawData) {
 		return true, MaxRawBytes, "", false
 	}
 
-	// Check for explicit authorization keywords in user input
-	userLower := strings.ToLower(userInput)
-	authKeywords := []string{"raw", "hex", "dump", "原始", "十六进制", "字节"}
-
-	for _, kw := range authKeywords {
-		if strings.Contains(userLower, kw) {
-			return true, MaxRawBytes, "", false
-		}
-	}
-
-	// Not authorized - needs user confirmation
+	// All include_raw=true requests require explicit user confirmation
+	// This is more secure than keyword matching - user must actively approve
 	return false, 0, "需要用户确认才能显示原始数据", true
 }
 

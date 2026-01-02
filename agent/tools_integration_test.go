@@ -168,7 +168,7 @@ func TestRawDataAuthorizationDenied(t *testing.T) {
 	}
 }
 
-// TestRawDataAuthorizationGranted tests that raw data is shown with proper authorization
+// TestRawDataAuthorizationGranted tests that raw data is shown with session authorization
 func TestRawDataAuthorizationGranted(t *testing.T) {
 	exec := NewToolExecutor()
 	exec.AddPacket(capture.PacketInfo{
@@ -179,8 +179,8 @@ func TestRawDataAuthorizationGranted(t *testing.T) {
 		RawData:  []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07},
 	})
 
-	// Set user input WITH raw keyword
-	exec.SetLastUserInput("显示原始数据")
+	// Grant session authorization BEFORE the request
+	exec.GrantRawDataAuthorization(true)
 
 	result, err := exec.ExecuteTool("analyze_packet", map[string]interface{}{
 		"packet_number": float64(1),
@@ -193,6 +193,10 @@ func TestRawDataAuthorizationGranted(t *testing.T) {
 	// Should contain hex dump and sensitivity warning
 	if !strings.Contains(result, "敏感") {
 		t.Error("Raw data output should include sensitivity warning")
+	}
+	// Should NOT require confirmation since session is authorized
+	if strings.Contains(result, "[CONFIRMATION_REQUIRED]") {
+		t.Error("Should not require confirmation when session is authorized")
 	}
 }
 

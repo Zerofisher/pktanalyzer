@@ -61,8 +61,14 @@ func (t *ToolExecutor) GetAuthorizationStore() *AuthorizationStore {
 	return t.authStore
 }
 
-// GrantRawDataAuthorization grants raw data authorization for this session
+// GrantRawDataAuthorization grants raw data authorization
+// If forSession is true, grants session-wide authorization (even without pending request)
 func (t *ToolExecutor) GrantRawDataAuthorization(forSession bool) {
+	if forSession {
+		// Direct session grant - works even without pending request
+		t.authStore.GrantSessionAuthorization(AuthTypeRawData)
+	}
+	// Also grant pending request if exists
 	t.authStore.GrantAuthorization(forSession)
 }
 
@@ -515,8 +521,13 @@ func (t *ToolExecutor) analyzePacket(input map[string]interface{}) (string, erro
 
 	// Check include_raw parameter with authorization
 	includeRawRequested := false
-	if v, ok := input["include_raw"].(bool); ok {
-		includeRawRequested = v
+	if v, ok := input["include_raw"]; ok {
+		switch val := v.(type) {
+		case bool:
+			includeRawRequested = val
+		case string:
+			includeRawRequested = strings.ToLower(val) == "true"
+		}
 	}
 
 	var rawAllowed bool

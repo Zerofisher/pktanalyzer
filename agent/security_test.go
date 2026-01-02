@@ -232,22 +232,21 @@ func TestRedactQueryParams(t *testing.T) {
 
 func TestCheckRawDataAuthorization(t *testing.T) {
 	tests := []struct {
-		name       string
-		userInput  string
-		includeRaw bool
-		wantAuth   bool
+		name        string
+		userInput   string
+		includeRaw  bool
+		wantAuth    bool
 		wantConfirm bool
 	}{
 		{"no raw requested", "分析数据包", false, false, false},
-		{"raw requested but not in input", "分析数据包", true, false, true}, // Now needs confirmation
-		{"raw keyword in Chinese", "显示原始数据", true, true, false},
-		{"hex keyword", "show me the hex dump", true, true, false},
-		{"raw keyword English", "I want to see raw data", true, true, false},
-		{"十六进制 keyword", "显示十六进制", true, true, false},
+		{"raw requested without session auth", "分析数据包", true, false, true},
+		{"raw keyword no longer auto-authorizes", "显示原始数据", true, false, true},
+		{"hex keyword no longer auto-authorizes", "show me the hex dump", true, false, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Use nil authStore (no session grants)
 			allowed, _, _, needsConfirm := CheckRawDataAuthorization(tt.userInput, tt.includeRaw, nil)
 			if allowed != tt.wantAuth {
 				t.Errorf("CheckRawDataAuthorization(%q, %v) allowed=%v, want %v",
@@ -258,6 +257,25 @@ func TestCheckRawDataAuthorization(t *testing.T) {
 					tt.userInput, tt.includeRaw, needsConfirm, tt.wantConfirm)
 			}
 		})
+	}
+}
+
+func TestCheckRawDataAuthorizationWithSessionGrant(t *testing.T) {
+	store := NewAuthorizationStore()
+
+	// Without session grant, should need confirmation
+	allowed, _, _, needsConfirm := CheckRawDataAuthorization("分析数据包", true, store)
+	if allowed || !needsConfirm {
+		t.Error("Without session grant, should need confirmation")
+	}
+
+	// Grant session authorization
+	store.sessionGrants[AuthTypeRawData] = true
+
+	// With session grant, should be allowed without confirmation
+	allowed, _, _, needsConfirm = CheckRawDataAuthorization("分析数据包", true, store)
+	if !allowed || needsConfirm {
+		t.Error("With session grant, should be allowed without confirmation")
 	}
 }
 

@@ -4,8 +4,10 @@ package react
 import (
 	"context"
 	"fmt"
-	"github.com/Zerofisher/pktanalyzer/agent/llm"
+	"strings"
 	"time"
+
+	"github.com/Zerofisher/pktanalyzer/agent/llm"
 )
 
 // Policy defines the behavior of the ReAct loop
@@ -248,9 +250,11 @@ func (a *Agent) ModelID() string {
 // StreamEvent extends llm.StreamEvent with agent-specific info
 type StreamEvent struct {
 	llm.StreamEvent
-	ToolExecuting bool   // True when a tool is being executed
-	ToolName      string // Name of the tool being executed
-	Iteration     int    // Current ReAct iteration
+	ToolExecuting      bool   // True when a tool is being executed
+	ToolName           string // Name of the tool being executed
+	Iteration          int    // Current ReAct iteration
+	NeedsConfirmation  bool   // True when tool result requires user confirmation
+	ConfirmationResult string // The tool result that needs confirmation
 }
 
 // ChatStream processes a user message and streams the response
@@ -413,6 +417,24 @@ func (a *Agent) runStreamLoop(ctx context.Context, eventChan chan<- StreamEvent)
 					IsError:    isError,
 				},
 			})
+
+			// Check if tool result requires user confirmation
+			// This happens when sensitive operations (like viewing raw packet data) need explicit approval
+			if strings.Contains(resultContent, "[CONFIRMATION_REQUIRED]") {
+				eventChan <- StreamEvent{
+					StreamEvent: llm.StreamEvent{
+						Type:  llm.StreamEventDelta,
+						Delta: resultContent, // Send full result to TUI
+					},
+					ToolExecuting:      false,
+					ToolName:           tc.Name,
+					Iteration:          iteration,
+					NeedsConfirmation:  true,
+					ConfirmationResult: resultContent,
+				}
+				// Pause the loop - TUI will handle confirmation and may retry
+				return
+			}
 
 			// Notify tool execution end with result preview
 			eventChan <- StreamEvent{

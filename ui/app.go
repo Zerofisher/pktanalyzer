@@ -48,13 +48,6 @@ func waitForPacket(packetChan <-chan capture.PacketInfo) tea.Cmd {
 	}
 }
 
-func sendAIMessage(aiAgent *agent.Agent, message string) tea.Cmd {
-	return func() tea.Msg {
-		response, err := aiAgent.Chat(message)
-		return aiResponseMsg{content: response, err: err}
-	}
-}
-
 // aiStreamStartMsg indicates stream has started with channel reference
 type aiStreamStartMsg struct {
 	eventChan <-chan agent.StreamEvent
@@ -207,6 +200,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle different stream event types
 		switch msg.event.Type {
 		case llm.StreamEventDelta:
+			// Check if this event requires user confirmation (from react agent)
+			if msg.event.NeedsConfirmation {
+				// Stop processing stream - need user confirmation first
+				m.aiProcessing = false
+				m.aiStreamChan = nil
+
+				// Update message content with confirmation request
+				if m.aiStreamingMsgID >= 0 && m.aiStreamingMsgID < len(m.chatMessages) {
+					m.chatMessages[m.aiStreamingMsgID].Content = m.aiStreamContent + "\n\n⚠️ 需要授权确认..."
+				}
+				m.aiStreamingMsgID = -1
+				m.aiStreamContent = ""
+
+				// Show confirmation dialog
+				if m.aiAgent != nil && m.aiAgent.HasPendingConfirmation() {
+					m.pendingConfirmation = m.aiAgent.GetPendingConfirmation()
+					m.showConfirmDialog = true
+				}
+				return m, nil
+			}
+
 			// Append delta to current streaming content
 			m.aiStreamContent += msg.event.Delta
 			// Update the message being streamed
@@ -796,6 +810,19 @@ func (m Model) View() string {
 	// Main content
 	if m.showHelp {
 		sb.WriteString(m.renderHelp())
+	} else if m.showConfirmDialog && m.pendingConfirmation != nil {
+		sb.WriteString("\n\n")
+		sb.WriteString(m.renderConfirmationDialog())
+		sb.WriteString("\n\n")
+		// Add some helpful text if not in chat view
+		if m.viewMode != ViewChat {
+			sb.WriteString(dimStyle.Render("  (Authorization requested by AI Agent. Please confirm to proceed.)"))
+		}
+		// Fill some space to push status bar down
+		lines := strings.Count(sb.String(), "\n")
+		for i := lines; i < m.height-2; i++ {
+			sb.WriteString("\n")
+		}
 	} else if m.splitView && m.aiEnabled {
 		// Split view: packets on left, chat on right
 		sb.WriteString(m.renderSplitView())

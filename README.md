@@ -1,54 +1,56 @@
 # PktAnalyzer
 
-一个用 Go 语言编写的网络数据包命令行分析工具，类似 tshark/Wireshark，支持实时抓包、pcap 文件分析、TLS/HTTPS 解密、TCP 流重组、CLI 导出和 AI 智能分析。
+[English](./README.md) | [简体中文](./README.zh-CN.md)
 
-## 功能特性
+A command-line network packet analysis tool written in Go, similar to tshark/Wireshark. It supports real-time packet capture, pcap file analysis, TLS/HTTPS decryption, TCP stream reassembly, CLI export, and AI-powered analysis.
 
-- **实时抓包**: 从网络接口捕获数据包（需要 root 权限）
-- **文件分析**: 读取 pcap/pcapng 格式的抓包文件
-- **TLS 解密**: 使用 SSLKEYLOGFILE 解密 HTTPS 流量
-- **TCP 流重组**: 跟踪和重组 TCP 会话，查看完整的数据流
-- **显示过滤器**: 类 Wireshark 语法的显示过滤 (`-Y`)
-- **CLI 导出**: tshark 兼容的命令行输出 (`-T text/json/fields`)
-- **统计分析**: 端点统计、会话统计、I/O 统计 (`-z`)
-- **流追踪**: 导出 TCP 流数据 (`-z follow,tcp,ascii`)
-- **专家信息系统**: TCP/DNS/HTTP 异常检测，类似 Wireshark Expert Info (`-z expert`)
-- **AI 智能分析**: 集成 Claude/OpenAI，智能解释数据包和网络行为
-- **TUI 界面**: 交互式终端界面，支持滚动、过滤、详情查看、分屏显示
+## Features
 
-### 支持的协议
+- **Real-time Capture**: Capture packets from network interfaces (requires root privileges).
+- **File Analysis**: Read capture files in pcap/pcapng format.
+- **TLS Decryption**: Decrypt HTTPS traffic using `SSLKEYLOGFILE`.
+- **TCP Stream Reassembly**: Track and reassemble TCP sessions to view complete data streams.
+- **Display Filters**: Wireshark-like syntax for display filtering (`-Y`).
+- **CLI Export**: tshark-compatible command-line output (`-T text/json/fields`).
+- **Statistical Analysis**: Endpoint statistics, conversation statistics, I/O statistics (`-z`).
+- **Stream Following**: Export TCP stream data (`-z follow,tcp,ascii`).
+- **Expert Info**: An expert system for TCP/DNS/HTTP anomaly detection, similar to Wireshark Expert Info (`-z expert`).
+- **AI Analysis**: Integrated with Claude/OpenAI for intelligent interpretation of packets and network behavior.
+- **TUI Interface**: Interactive terminal user interface with support for scrolling, filtering, detailed views, and split screens.
 
-| 层级       | 协议                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------ |
-| 数据链路层 | Ethernet                                                                             |
-| 网络层     | IPv4, IPv6, ARP, ICMP, ICMPv6, IGMP                                                  |
-| 传输层     | TCP, UDP                                                                             |
-| 应用层     | DNS, HTTP/1.1, **HTTP/2**, **WebSocket**, TLS/HTTPS, NBNS, LLMNR, mDNS, SSDP, SRVLOC, WS-Discovery, DHCP, NTP, SNMP |
+### Supported Protocols
 
-### HTTP/2 支持
+| Layer           | Protocols                                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Data Link       | Ethernet                                                                                                            |
+| Network         | IPv4, IPv6, ARP, ICMP, ICMPv6, IGMP                                                                                 |
+| Transport       | TCP, UDP                                                                                                            |
+| Application     | DNS, HTTP/1.1, **HTTP/2**, **WebSocket**, TLS/HTTPS, NBNS, LLMNR, mDNS, SSDP, SRVLOC, WS-Discovery, DHCP, NTP, SNMP |
 
-pktanalyzer 支持完整的 HTTP/2 协议解析：
+### HTTP/2 Support
 
-- **帧解析**: 支持所有 9 种 HTTP/2 帧类型 (DATA, HEADERS, PRIORITY, RST_STREAM, SETTINGS, PUSH_PROMISE, PING, GOAWAY, WINDOW_UPDATE, CONTINUATION)
-- **HPACK 解压**: 完整实现 RFC 7541 头部压缩，包括静态表、动态表和 Huffman 编码
-- **流多路复用**: 跟踪和管理 HTTP/2 连接中的多个并发流
-- **请求/响应配对**: 自动将请求和响应关联到对应的流
-- **ALPN 检测**: 通过 TLS ALPN 扩展自动检测 HTTP/2 协议协商
+pktanalyzer supports complete HTTP/2 protocol parsing:
 
-### WebSocket 支持
+- **Frame Parsing**: Supports all 9 HTTP/2 frame types (DATA, HEADERS, PRIORITY, RST_STREAM, SETTINGS, PUSH_PROMISE, PING, GOAWAY, WINDOW_UPDATE, CONTINUATION).
+- **HPACK Decompression**: Full implementation of RFC 7541 header compression, including static table, dynamic table, and Huffman coding.
+- **Stream Multiplexing**: Tracks and manages multiple concurrent streams within an HTTP/2 connection.
+- **Request/Response Pairing**: Automatically associates requests and responses with their corresponding streams.
+- **ALPN Detection**: Automatically detects HTTP/2 protocol negotiation via TLS ALPN extension.
 
-pktanalyzer 支持完整的 WebSocket 协议解析（RFC 6455）：
+### WebSocket Support
 
-- **握手检测**: 自动检测 HTTP Upgrade 握手，验证 Sec-WebSocket-Key/Accept
-- **帧解析**: 支持所有 WebSocket 帧类型 (TEXT, BINARY, CLOSE, PING, PONG, CONTINUATION)
-- **掩码处理**: 自动解码客户端发送的掩码数据
-- **消息重组**: 将分片帧重组为完整消息
-- **扩展长度**: 支持 16 位和 64 位扩展 payload 长度
-- **关闭码解析**: 解析并显示 WebSocket 关闭状态码和原因
+pktanalyzer supports complete WebSocket protocol parsing (RFC 6455):
 
-## 安装
+- **Handshake Detection**: Automatically detects HTTP Upgrade handshakes and verifies Sec-WebSocket-Key/Accept.
+- **Frame Parsing**: Supports all WebSocket frame types (TEXT, BINARY, CLOSE, PING, PONG, CONTINUATION).
+- **Masking**: Automatically decodes masked data sent by clients.
+- **Message Reassembly**: Reassembles fragmented frames into complete messages.
+- **Extended Length**: Supports 16-bit and 64-bit extended payload lengths.
+- **Close Code Parsing**: Parses and displays WebSocket close status codes and reasons.
 
-### 前置依赖
+## Installation
+
+### Prerequisites
 
 ```bash
 # macOS
@@ -61,7 +63,7 @@ sudo apt-get install libpcap-dev
 sudo yum install libpcap-devel
 ```
 
-### 编译
+### Build
 
 ```bash
 cd pktanalyzer
@@ -69,100 +71,100 @@ go mod tidy
 go build -o pktanalyzer
 ```
 
-## 使用方法
+## Usage
 
-### 基本用法
+### Basic Usage
 
 ```bash
-# 查看帮助
+# Show help
 ./pktanalyzer --help
 
-# 列出可用网络接口
+# List available network interfaces
 ./pktanalyzer -D
 
-# 列出可用字段
+# List available fields
 ./pktanalyzer -G fields
 
-# 读取 pcap 文件 (TUI 模式)
-    ./pktanalyzer -r capture.pcapng
+# Read pcap file (TUI mode)
+./pktanalyzer -r capture.pcapng
 
-# 实时抓包（需要 root 权限）
+# Real-time capture (requires root privileges)
 sudo ./pktanalyzer -i en0
 
-# 使用 BPF 过滤器
+# Use BPF filter
 ./pktanalyzer -r capture.pcapng -f "tcp port 80"
 sudo ./pktanalyzer -i en0 -f "host 192.168.1.1"
 ```
 
-### 保存数据包 (`-w`)
+### Save Packets (`-w`)
 
-将捕获的数据包保存到 pcapng 文件：
+Save captured packets to a pcapng file:
 
 ```bash
-# 实时抓包并保存到文件
+# Real-time capture and save to file
 sudo ./pktanalyzer -i en0 -w capture.pcapng
 
-# 限制抓包数量
+# Limit the number of packets
 sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
 
-# 读取文件，过滤后保存
+# Read file, filter, and save
 ./pktanalyzer -r input.pcapng -w filtered.pcapng -Y 'tcp.dstport == 443'
 
-# 提取特定协议的数据包
+# Extract packets of a specific protocol
 ./pktanalyzer -r input.pcapng -w http_only.pcapng -Y 'http'
 ```
 
-**TUI 模式保存**：在 TUI 界面中按 `w` 键可以将当前（过滤后的）数据包保存到文件。文件名自动生成，格式为 `capture_YYYYMMDD_HHMMSS.pcapng`。
+**TUI Mode Save**: In TUI mode, press `w` to save the current (filtered) packets to a file. The filename is automatically generated in the format `capture_YYYYMMDD_HHMMSS.pcapng`.
 
-### CLI 导出模式 (tshark 兼容)
+### CLI Export Mode (tshark compatible)
 
 ```bash
-# 文本格式输出（一行摘要）
+# Text format output (one-line summary)
 ./pktanalyzer -r capture.pcapng -T text -c 10
 
-# JSON 格式输出
+# JSON format output
 ./pktanalyzer -r capture.pcapng -T json -c 5
 
-# 字段提取
+# Field extraction
 ./pktanalyzer -r capture.pcapng -T fields -e frame.number -e ip.src -e ip.dst -e tcp.dstport
 
-# 详细输出（协议层信息）
+# Detailed output (protocol layer information)
 ./pktanalyzer -r capture.pcapng -V -c 1
 
-# 十六进制 dump
+# Hex dump
 ./pktanalyzer -r capture.pcapng -x -c 1
 ```
 
-### 显示过滤器 (`-Y`)
+### Display Filters (`-Y`)
 
-使用类 Wireshark 语法过滤数据包：
+Use Wireshark-like syntax to filter packets:
 
 ```bash
-# 基础比较
+# Basic comparison
 ./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 80' -T text
 
-# IP 地址过滤
+# IP address filtering
 ./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1"' -T text
 
-# 逻辑组合
+# Logical combination
 ./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1" and tcp' -T text
 ./pktanalyzer -r capture.pcapng -Y 'tcp or udp' -T text
 
-# 字符串包含
+# String containment
 ./pktanalyzer -r dns.pcapng -Y 'dns.qry.name contains "google"' -T text
 
-# 协议过滤
+# Protocol filtering
 ./pktanalyzer -r capture.pcapng -Y 'dns' -T text
 ./pktanalyzer -r capture.pcapng -Y 'http' -T text
 
-# 范围匹配
+# Range matching
 ./pktanalyzer -r capture.pcapng -Y 'tcp.dstport in [80, 443, 8080]' -T text
 
-# 与 JSON 导出联动
+# Combine with JSON export
 ./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 443' -T json -c 10
 ```
 
-支持的过滤字段：
+Supported filter fields:
 
 - `frame.*`: number, len, time_epoch, protocols
 - `eth.*`: src, dst, type
@@ -173,158 +175,158 @@ sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
 - `http.*`: request, response, method, uri, status
 - `tls.*`: handshake, handshake_type, sni
 
-### 统计分析 (`-z`)
+### Statistical Analysis (`-z`)
 
 ```bash
-# 端点统计
+# Endpoint statistics
 ./pktanalyzer -r capture.pcapng -z endpoints
 
-# TCP 会话统计
+# TCP conversation statistics
 ./pktanalyzer -r capture.pcapng -z conv,tcp
 
-# UDP 会话统计
+# UDP conversation statistics
 ./pktanalyzer -r capture.pcapng -z conv,udp
 
-# I/O 统计（1秒间隔）
+# I/O statistics (1-second interval)
 ./pktanalyzer -r capture.pcapng -z io,stat,1
 
-# I/O 统计（0.5秒间隔）
+# I/O statistics (0.5-second interval)
 ./pktanalyzer -r capture.pcapng -z io,stat,0.5
 ```
 
-### TCP 流追踪 (`-z follow`)
+### TCP Stream Following (`-z follow`)
 
 ```bash
-# ASCII 格式导出流 #1
+# ASCII format export for stream #1
 ./pktanalyzer -r capture.pcapng -z follow,tcp,ascii,1
 
-# Hex 格式导出
+# Hex format export
 ./pktanalyzer -r capture.pcapng -z follow,tcp,hex,1
 
-# Raw 格式（直接输出字节）
+# Raw format (direct byte output)
 ./pktanalyzer -r capture.pcapng -z follow,tcp,raw,1 > stream.bin
 ```
 
-### 专家信息系统 (`-z expert`)
+### Expert Info System (`-z expert`)
 
-分析网络数据包中的异常和问题，类似 Wireshark 的 Expert Information 功能：
+Analyzes anomalies and issues in network packets, similar to Wireshark's Expert Information feature:
 
 ```bash
-# 显示所有专家信息
+# Show all expert info
 ./pktanalyzer -r capture.pcapng -z expert
 
-# 只显示警告和错误（过滤 Note 级别以下）
+# Show warnings and errors only (filter below Note level)
 ./pktanalyzer -r capture.pcapng -z expert,warning
 
-# 只显示错误
+# Show errors only
 ./pktanalyzer -r capture.pcapng -z expert,error
 ```
 
-**检测的 TCP 异常**:
+**Detected TCP Anomalies**:
 
-| 异常类型 | 严重级别 | 说明 |
-|---------|---------|------|
-| TCP Retransmission | Warning | TCP 重传（200ms+ 后重发相同序列号） |
-| TCP Fast Retransmission | Warning | 快速重传（收到 3 个重复 ACK 后触发） |
-| TCP Spurious Retransmission | Note | 伪重传（数据已被确认后再次发送） |
-| TCP Duplicate ACK | Note | 重复 ACK（相同确认号的 ACK） |
-| TCP Triple Duplicate ACK | Warning | 三次重复 ACK（触发快速重传信号） |
-| TCP Out-of-Order | Warning | 乱序包（序列号小于预期） |
-| TCP Zero Window | Warning | 零窗口（接收方缓冲区满） |
-| TCP Window Update | Note | 窗口更新（零窗口后恢复） |
-| TCP Zero Window Probe | Note | 零窗口探测 |
-| TCP Keep-Alive | Note | 保活探测 |
-| TCP Keep-Alive ACK | Note | 保活响应 |
-| TCP RST | Warning | 连接重置 |
-| TCP Connection Refused | Error | 连接被拒绝（SYN 后收到 RST） |
-| TCP SYN Flood Suspected | Error | 疑似 SYN 洪泛攻击 |
-| TCP Port Scan Suspected | Warning | 疑似端口扫描 |
+| Anomaly Type                | Severity | Description                                           |
+| --------------------------- | -------- | ----------------------------------------------------- |
+| TCP Retransmission          | Warning  | TCP Retransmission (resending same sequence > 200ms)  |
+| TCP Fast Retransmission     | Warning  | Fast Retransmission (triggered by 3 duplicate ACKs)   |
+| TCP Spurious Retransmission | Note     | Spurious Retransmission (data resent after ACK received) |
+| TCP Duplicate ACK           | Note     | Duplicate ACK (ACK with same acknowledgment number)   |
+| TCP Triple Duplicate ACK    | Warning  | Triple Duplicate ACK (triggers Fast Retransmission)   |
+| TCP Out-of-Order            | Warning  | Out-of-Order Packet (sequence number less than expected)|
+| TCP Zero Window             | Warning  | Zero Window (receiver buffer full)                    |
+| TCP Window Update           | Note     | Window Update (recovery from Zero Window)             |
+| TCP Zero Window Probe       | Note     | Zero Window Probe                                     |
+| TCP Keep-Alive              | Note     | Keep-Alive Probe                                      |
+| TCP Keep-Alive ACK          | Note     | Keep-Alive Response                                   |
+| TCP RST                     | Warning  | Connection Reset                                      |
+| TCP Connection Refused      | Error    | Connection Refused (RST received after SYN)           |
+| TCP SYN Flood Suspected     | Error    | Suspected SYN Flood Attack                            |
+| TCP Port Scan Suspected     | Warning  | Suspected Port Scan                                   |
 
-**检测的 DNS 异常**:
+**Detected DNS Anomalies**:
 
-| 异常类型 | 严重级别 | 说明 |
-|---------|---------|------|
-| DNS Query No Response | Warning | DNS 查询无响应（超时 5 秒） |
-| DNS NXDOMAIN | Note | 域名不存在 |
-| DNS SERVFAIL | Warning | 服务器错误 |
-| DNS Query Refused | Warning | 查询被拒绝 |
+| Anomaly Type          | Severity | Description                     |
+| --------------------- | -------- | ------------------------------- |
+| DNS Query No Response | Warning  | DNS Query No Response (5s timeout) |
+| DNS NXDOMAIN          | Note     | Domain Name Does Not Exist      |
+| DNS SERVFAIL          | Warning  | Server Failure                  |
+| DNS Query Refused     | Warning  | Query Refused                   |
 
-**检测的 HTTP 异常**:
+**Detected HTTP Anomalies**:
 
-| 异常类型 | 严重级别 | 说明 |
-|---------|---------|------|
-| HTTP 4xx Client Error | Warning | 客户端错误（400-499） |
-| HTTP 5xx Server Error | Error | 服务器错误（500-599） |
-| HTTP Redirect | Note | 重定向（300-399） |
-| HTTP Slow Response | Warning | 响应缓慢（> 3 秒） |
-| HTTP Request No Response | Warning | 请求无响应 |
+| Anomaly Type             | Severity | Description                     |
+| ------------------------ | -------- | ------------------------------- |
+| HTTP 4xx Client Error    | Warning  | Client Error (400-499)          |
+| HTTP 5xx Server Error    | Error    | Server Error (500-599)          |
+| HTTP Redirect            | Note     | Redirect (300-399)              |
+| HTTP Slow Response       | Warning  | Slow Response (> 3 seconds)     |
+| HTTP Request No Response | Warning  | Request No Response             |
 
-### TCP 流重组 (TUI)
+### TCP Stream Reassembly (TUI)
 
-在 TUI 中查看 TCP 会话的完整数据流：
+View complete TCP session data streams in the TUI:
 
 ```bash
-# 读取文件并启用流重组
+# Read file and enable stream reassembly
 ./pktanalyzer -r capture.pcapng -S
 
-# 在 TUI 中按 's' 键可切换到流列表视图
+# Press 's' in TUI to switch to stream list view
 ```
 
-### HTTP/2 流分析 (TUI)
+### HTTP/2 Stream Analysis (TUI)
 
-在 TCP 流重组模式下，pktanalyzer 会自动检测并解析 HTTP/2 流量：
+In TCP stream reassembly mode, pktanalyzer automatically detects and parses HTTP/2 traffic:
 
 ```bash
-# 启用流重组分析 HTTP/2 流量
+# Enable stream reassembly to analyze HTTP/2 traffic
 ./pktanalyzer -r https_capture.pcapng -S
 
-# 配合 TLS 解密分析加密的 HTTP/2 流量
+# Combine with TLS decryption to analyze encrypted HTTP/2 traffic
 ./pktanalyzer -r https_capture.pcapng -S -k ~/sslkeys.log
 ```
 
-**TUI 操作步骤**:
+**TUI Steps**:
 
-1. 按 `s` 键进入 TCP 流列表视图
-2. 流列表会显示检测到的协议类型 (HTTP/1.1, HTTP/2, TLS 等)
-3. HTTP/2 流会以粉色高亮显示
-4. 选择一个流后按 `Enter` 查看详情
+1. Press `s` to enter the TCP Stream List view.
+2. The stream list shows detected protocol types (HTTP/1.1, HTTP/2, TLS, etc.).
+3. HTTP/2 streams are highlighted in pink.
+4. Select a stream and press `Enter` to view details.
 
-**HTTP/2 流详情视图显示**:
+**HTTP/2 Stream Detail View**:
 
-- **连接概要**: 流数量、帧数量
-- **帧列表**: 所有 HTTP/2 帧的摘要 (类型、流 ID、标志位)
-  - 例如: `[1] SETTINGS len=18`
-  - 例如: `[2] HEADERS stream=1 len=45 flags=END_HEADERS`
-  - 例如: `[3] DATA stream=1 len=1024 flags=END_STREAM`
-- **流详情**: 每个 HTTP/2 流的请求和响应
-  - 请求: 方法、路径、主机、头部
-  - 响应: 状态码、头部
-  - 数据: 请求/响应体大小
+- **Connection Summary**: Stream count, frame count.
+- **Frame List**: Summary of all HTTP/2 frames (type, stream ID, flags).
+  - e.g.: `[1] SETTINGS len=18`
+  - e.g.: `[2] HEADERS stream=1 len=45 flags=END_HEADERS`
+  - e.g.: `[3] DATA stream=1 len=1024 flags=END_STREAM`
+- **Stream Details**: Request and response for each HTTP/2 stream.
+  - Request: Method, path, host, headers.
+  - Response: Status code, headers.
+  - Data: Request/response body size.
 
-**HTTP/2 帧类型说明**:
+**HTTP/2 Frame Types**:
 
-| 帧类型        | 说明                         |
-| ------------- | ---------------------------- |
-| DATA          | 传输请求/响应体数据          |
-| HEADERS       | 传输 HTTP 头部 (HPACK 压缩)  |
-| PRIORITY      | 设置流优先级                 |
-| RST_STREAM    | 异常终止流                   |
-| SETTINGS      | 连接配置参数                 |
-| PUSH_PROMISE  | 服务器推送预告               |
-| PING          | 连接保活/延迟测量            |
-| GOAWAY        | 优雅关闭连接                 |
-| WINDOW_UPDATE | 流量控制窗口更新             |
-| CONTINUATION  | HEADERS/PUSH_PROMISE 的延续  |
+| Frame Type    | Description                                 |
+| ------------- | ------------------------------------------- |
+| DATA          | Transmits request/response body data        |
+| HEADERS       | Transmits HTTP headers (HPACK compressed)   |
+| PRIORITY      | Sets stream priority                        |
+| RST_STREAM    | Abnormally terminates a stream              |
+| SETTINGS      | Connection configuration parameters         |
+| PUSH_PROMISE  | Server push promise                         |
+| PING          | Connection keep-alive/latency measurement   |
+| GOAWAY        | Gracefully closes connection                |
+| WINDOW_UPDATE | Flow control window update                  |
+| CONTINUATION  | Continuation of HEADERS/PUSH_PROMISE        |
 
-### TLS/HTTPS 解密
+### TLS/HTTPS Decryption
 
-1. 设置环境变量让浏览器导出 TLS 密钥：
+1. Set environment variable to let the browser export TLS keys:
 
 ```bash
 export SSLKEYLOGFILE=~/sslkeys.log
 ```
 
-2. 从终端启动浏览器：
+2. Start the browser from the terminal:
 
 ```bash
 # Chrome
@@ -334,319 +336,319 @@ export SSLKEYLOGFILE=~/sslkeys.log
 /Applications/Firefox.app/Contents/MacOS/firefox
 ```
 
-3. 浏览网站后，使用密钥文件解密：
+3. Browse websites, then use the key file to decrypt:
 
 ```bash
-# 分析已保存的抓包文件
+# Analyze saved capture file
 ./pktanalyzer -r https_capture.pcapng -k ~/sslkeys.log
 
-# 实时抓包并解密
+# Real-time capture and decrypt
 sudo ./pktanalyzer -i en0 -k ~/sslkeys.log
 ```
 
-### AI 智能分析
+### AI Intelligent Analysis
 
-使用 AI 助手分析网络数据包。支持多种 LLM 提供商，采用 ReAct (Reasoning and Acting) 模式进行智能分析。
+Use the AI assistant to analyze network packets. Supports multiple LLM providers and uses the ReAct (Reasoning and Acting) pattern for intelligent analysis.
 
-#### 支持的 LLM 提供商
+#### Supported LLM Providers
 
-| 提供商     | 环境变量             | 默认模型                  | 说明                 |
+| Provider   | Environment Variable | Default Model             | Description          |
 | ---------- | -------------------- | ------------------------- | -------------------- |
 | Claude     | `ANTHROPIC_API_KEY`  | claude-sonnet-4-20250514  | Anthropic Claude API |
 | OpenAI     | `OPENAI_API_KEY`     | gpt-4o                    | OpenAI GPT API       |
-| OpenRouter | `OPENROUTER_API_KEY` | anthropic/claude-sonnet-4 | 聚合多模型平台       |
-| Ollama     | `OLLAMA_BASE_URL`    | llama3.2                  | 本地部署模型         |
+| OpenRouter | `OPENROUTER_API_KEY` | anthropic/claude-sonnet-4 | Multi-model platform |
+| Ollama     | `OLLAMA_BASE_URL`    | llama3.2                  | Locally hosted model |
 
-**Provider 检测优先级**: `AI_PROVIDER` 环境变量 > `OPENROUTER_API_KEY` > `ANTHROPIC_API_KEY` > `OPENAI_API_KEY` > `OLLAMA_BASE_URL`
+**Provider Detection Priority**: `AI_PROVIDER` > `OPENROUTER_API_KEY` > `ANTHROPIC_API_KEY` > `OPENAI_API_KEY` > `OLLAMA_BASE_URL`
 
-#### 基本用法
+#### Basic Usage
 
 ```bash
-# 使用 Claude
+# Use Claude
 export ANTHROPIC_API_KEY="your-claude-api-key"
 ./pktanalyzer -r capture.pcapng -A
 
-# 使用 OpenAI
+# Use OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
 ./pktanalyzer -r capture.pcapng -A
 
-# 使用 OpenRouter
+# Use OpenRouter
 export OPENROUTER_API_KEY="your-openrouter-api-key"
 ./pktanalyzer -r capture.pcapng -A
 
-# 使用本地 Ollama
+# Use local Ollama
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
 ./pktanalyzer -r capture.pcapng -A
 
-# 显式指定 Provider
+# Explicitly specify Provider
 export AI_PROVIDER="ollama"
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
 ./pktanalyzer -r capture.pcapng -A
 
-# 实时抓包 + AI 分析
+# Real-time capture + AI analysis
 sudo ./pktanalyzer -i en0 -A
 ```
 
-#### AI 工具能力
+#### AI Tool Capabilities
 
-AI 助手通过以下内置工具与数据包交互：
+The AI assistant interacts with packets using the following built-in tools:
 
-| 工具                 | 功能                     | 参数                                                                        |
-| -------------------- | ------------------------ | --------------------------------------------------------------------------- |
-| `get_packets`        | 获取已捕获的数据包列表   | `limit`, `offset`, `protocol`                                               |
-| `filter_packets`     | 按条件过滤数据包         | `src_ip`, `dst_ip`, `src_port`, `dst_port`, `protocol`, `contains`, `limit` |
-| `analyze_packet`     | 分析特定数据包的协议详情 | `packet_number` (必填)                                                      |
-| `get_statistics`     | 获取流量统计信息         | -                                                                           |
-| `explain_protocol`   | 解释协议工作原理         | `protocol` (必填), `topic`                                                  |
-| `find_connections`   | 查找 TCP 连接            | `ip`, `port`                                                                |
-| `find_dns_queries`   | 查找 DNS 查询记录        | `domain`, `limit`                                                           |
-| `find_http_requests` | 查找 HTTP 请求           | `url`, `method`, `limit`                                                    |
-| `detect_anomalies`   | 检测异常模式             | -                                                                           |
+| Tool                 | Function                               | Parameters                                                                  |
+| -------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
+| `get_packets`        | Get list of captured packets           | `limit`, `offset`, `protocol`                                               |
+| `filter_packets`     | Filter packets by condition            | `src_ip`, `dst_ip`, `src_port`, `dst_port`, `protocol`, `contains`, `limit` |
+| `analyze_packet`     | Analyze specific packet details        | `packet_number` (required)                                                  |
+| `get_statistics`     | Get traffic statistics                 | -                                                                           |
+| `explain_protocol`   | Explain protocol mechanics             | `protocol` (required), `topic`                                              |
+| `find_connections`   | Find TCP connections                   | `ip`, `port`                                                                |
+| `find_dns_queries`   | Find DNS query records                 | `domain`, `limit`                                                           |
+| `find_http_requests` | Find HTTP requests                     | `url`, `method`, `limit`                                                    |
+| `detect_anomalies`   | Detect anomalous patterns              | -                                                                           |
 
-#### 示例对话
+#### Example Conversation
 
-在 TUI 中按 `a` 进入 AI 聊天模式后，可以进行如下对话：
+Press `a` in TUI to enter AI chat mode, then converse like this:
 
 ```
-你: 这个抓包文件中有哪些 HTTP 请求？
-AI: [调用 find_http_requests 工具]
-    找到 5 个 HTTP 请求：
+You: What HTTP requests are in this capture file?
+AI: [Calls find_http_requests tool]
+    Found 5 HTTP requests:
     1. GET / HTTP/1.1 (google.com)
     2. GET /images/logo.png HTTP/1.1
     ...
 
-你: 分析第 4 个数据包
-AI: [调用 analyze_packet 工具]
-    第 4 个数据包是一个 HTTP GET 请求：
-    - 源: 172.16.16.128:1606
-    - 目的: 74.125.95.104:80
-    - 方法: GET
+You: Analyze packet #4
+AI: [Calls analyze_packet tool]
+    Packet #4 is an HTTP GET request:
+    - Source: 172.16.16.128:1606
+    - Destination: 74.125.95.104:80
+    - Method: GET
     - URI: /
     - Host: www.google.com
     ...
 
-你: 有没有异常流量？
-AI: [调用 detect_anomalies 工具]
-    未检测到明显异常。流量模式正常：
-    - 无端口扫描迹象
-    - TCP 重传率在正常范围
-    - 无异常连接模式
+You: Is there any anomalous traffic?
+AI: [Calls detect_anomalies tool]
+    No obvious anomalies detected. Traffic patterns are normal:
+    - No signs of port scanning
+    - TCP retransmission rate within normal range
+    - No abnormal connection patterns
 
-你: 解释一下 TCP 三次握手
-AI: [调用 explain_protocol 工具]
-    TCP 三次握手是建立可靠连接的过程：
-    1. SYN: 客户端发送 SYN 包，请求建立连接
-    2. SYN-ACK: 服务器响应 SYN-ACK，确认请求
-    3. ACK: 客户端发送 ACK，连接建立完成
+You: Explain the TCP three-way handshake
+AI: [Calls explain_protocol tool]
+    The TCP three-way handshake is the process of establishing a reliable connection:
+    1. SYN: Client sends SYN packet, requesting connection
+    2. SYN-ACK: Server responds with SYN-ACK, acknowledging request
+    3. ACK: Client sends ACK, connection established
     ...
 ```
 
-#### ReAct Agent 配置
+#### ReAct Agent Configuration
 
-AI 使用 ReAct 模式运行，内置以下安全策略：
+The AI uses the ReAct pattern with the following default safety policies:
 
-| 配置            | 默认值 | 说明                     |
-| --------------- | ------ | ------------------------ |
-| MaxIterations   | 10     | 单次对话最大推理循环次数 |
-| MaxToolsPerTurn | 5      | 每轮最多调用工具数       |
-| ToolTimeout     | 30s    | 单个工具执行超时         |
-| ContinueOnError | true   | 工具出错时继续执行       |
+| Config          | Default | Description                                 |
+| --------------- | ------- | ------------------------------------------- |
+| MaxIterations   | 10      | Max reasoning loops per conversation turn   |
+| MaxToolsPerTurn | 5       | Max tool calls per turn                     |
+| ToolTimeout     | 30s     | Timeout for single tool execution           |
+| ContinueOnError | true    | Continue execution if a tool fails          |
 
-## 命令行参数
+## Command Line Arguments
 
-| 参数             | 说明                                                     |
-| ---------------- | -------------------------------------------------------- |
-| `-i <interface>` | 指定抓包的网络接口                                       |
-| `-r <file>`      | 读取 pcap/pcapng 文件                                    |
-| `-f <filter>`    | BPF 过滤表达式（抓包过滤）                               |
-| `-Y <filter>`    | 显示过滤表达式（类 Wireshark 语法）                      |
-| `-k <keylog>`    | SSLKEYLOGFILE 路径（用于 TLS 解密）                      |
-| `-S`             | 启用 TCP 流重组                                          |
-| `-A`             | 启用 AI 助手（需设置 API Key）                           |
-| `-D`             | 列出可用网络接口                                         |
-| `-G fields`      | 列出可用字段                                             |
-| `-T <format>`    | 输出格式：text, json, fields                             |
-| `-w <file>`      | 写入数据包到 pcapng 文件                                 |
-| `-c <count>`     | 限制输出包数量                                           |
-| `-V`             | 显示详细协议信息                                         |
-| `-x`             | 显示十六进制 dump                                        |
-| `-e <field>`     | 提取指定字段（配合 `-T fields`）                         |
-| `-z <stats>`     | 统计选项：endpoints, conv,tcp, io,stat, follow,tcp,ascii, expert |
+| Argument         | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `-i <interface>` | Network interface to capture from                                |
+| `-r <file>`      | Read pcap/pcapng file                                            |
+| `-f <filter>`    | BPF filter expression (capture filter)                           |
+| `-Y <filter>`    | Display filter expression (Wireshark-like syntax)                |
+| `-k <keylog>`    | Path to SSLKEYLOGFILE (for TLS decryption)                       |
+| `-S`             | Enable TCP stream reassembly                                     |
+| `-A`             | Enable AI assistant (requires API Key)                           |
+| `-D`             | List available network interfaces                                |
+| `-G fields`      | List available fields                                            |
+| `-T <format>`    | Output format: text, json, fields                                |
+| `-w <file>`      | Write packets to pcapng file                                     |
+| `-c <count>`     | Limit output packet count                                        |
+| `-V`             | Show detailed protocol information                               |
+| `-x`             | Show hex dump                                                    |
+| `-e <field>`     | Extract specific field (with `-T fields`)                        |
+| `-z <stats>`     | Statistics: endpoints, conv,tcp, io,stat, follow,tcp,ascii, expert |
 
-## TUI 快捷键
+## TUI Shortcuts
 
-### 通用快捷键
+### General Shortcuts
 
-| 按键         | 功能                      |
-| ------------ | ------------------------- |
-| `↑` / `k`    | 向上移动                  |
-| `↓` / `j`    | 向下移动                  |
-| `PgUp`       | 向上翻页                  |
-| `PgDn`       | 向下翻页                  |
-| `Home` / `g` | 跳到第一个包              |
-| `End` / `G`  | 跳到最后一个包            |
-| `Enter`      | 查看数据包详情            |
-| `x`          | 查看 Hex dump             |
-| `w`          | 保存数据包到 pcapng 文件  |
-| `Esc`        | 返回列表视图              |
-| `/`          | 输入过滤器                |
-| `Space`      | 暂停/继续抓包（实时模式） |
-| `?`          | 显示帮助                  |
-| `q`          | 退出                      |
+| Key          | Function                      |
+| ------------ | ----------------------------- |
+| `↑` / `k`    | Move up                       |
+| `↓` / `j`    | Move down                     |
+| `PgUp`       | Page up                       |
+| `PgDn`       | Page down                     |
+| `Home` / `g` | Jump to first packet          |
+| `End` / `G`  | Jump to last packet           |
+| `Enter`      | View packet details           |
+| `x`          | View Hex dump                 |
+| `w`          | Save packets to pcapng file   |
+| `Esc`        | Return to list view           |
+| `/`          | Input filter                  |
+| `Space`      | Pause/Resume capture (Real-time) |
+| `?`          | Show help                     |
+| `q`          | Quit                          |
 
-### TCP 流重组快捷键
+### TCP Stream Reassembly Shortcuts
 
-| 按键    | 功能              |
-| ------- | ----------------- |
-| `s`     | 切换到 TCP 流列表 |
-| `Enter` | 查看流详情        |
-| `c`     | 查看客户端数据    |
-| `S`     | 查看服务端数据    |
-| `Esc`   | 返回上一视图      |
+| Key     | Function               |
+| ------- | ---------------------- |
+| `s`     | Switch to TCP stream list |
+| `Enter` | View stream details    |
+| `c`     | View client data       |
+| `S`     | View server data       |
+| `Esc`   | Return to previous view |
 
-### AI 助手快捷键（需启用 -A）
+### AI Assistant Shortcuts (requires -A)
 
-| 按键    | 功能              |
-| ------- | ----------------- |
-| `a`     | 打开/关闭 AI 聊天 |
-| `Tab`   | 切换分屏视图      |
-| `i`     | 进入输入模式      |
-| `Enter` | 发送消息          |
-| `Esc`   | 退出输入模式      |
+| Key     | Function               |
+| ------- | ---------------------- |
+| `a`     | Toggle AI chat         |
+| `Tab`   | Switch split view      |
+| `i`     | Enter input mode       |
+| `Enter` | Send message           |
+| `Esc`   | Exit input mode        |
 
-### 专家信息快捷键
+### Expert Info Shortcuts
 
-| 按键  | 功能                            |
-| ----- | ------------------------------- |
-| `e`   | 切换到专家信息视图              |
-| `1`   | 显示所有级别 (Chat+)            |
-| `2`   | 显示 Note 及以上                |
-| `3`   | 显示 Warning 及以上             |
-| `4`   | 只显示 Error                    |
-| `Esc` | 返回数据包列表                  |
+| Key   | Function               |
+| ----- | ---------------------- |
+| `e`   | Switch to expert info  |
+| `1`   | Show all levels (Chat+)|
+| `2`   | Show Note and above    |
+| `3`   | Show Warning and above |
+| `4`   | Show Error only        |
+| `Esc` | Return to packet list  |
 
-## 界面说明
+## Interface Description
 
-### 数据包列表视图
+### Packet List View
 
-显示所有捕获的数据包，包含：
+Displays all captured packets, including:
 
-- 编号、时间戳
-- 源/目的地址
-- 协议类型
-- 摘要信息
+- Number, Timestamp
+- Source/Destination Address
+- Protocol Type
+- Summary Information
 
-协议颜色：
+Protocol Colors:
 
-- TCP: 蓝色
-- UDP: 绿色
-- ICMP: 橙色
-- ARP: 紫色
-- DNS: 天蓝色
-- HTTP: 浅绿色
-- HTTP/2: 粉色
-- WebSocket: 紫色
-- TLS: 金色
-- HTTPS (已解密): 亮绿色
+- TCP: Blue
+- UDP: Green
+- ICMP: Orange
+- ARP: Purple
+- DNS: Sky Blue
+- HTTP: Light Green
+- HTTP/2: Pink
+- WebSocket: Purple
+- TLS: Gold
+- HTTPS (Decrypted): Bright Green
 
-### 详情视图
+### Detail View
 
-按 `Enter` 查看选中数据包的详细信息：
+Press `Enter` to view details of the selected packet:
 
-- 各协议层的解析结果
-- TLS 握手信息（ClientHello, ServerHello, SNI 等）
-- 解密后的 HTTP 请求/响应
+- Parsed results for each protocol layer
+- TLS handshake info (ClientHello, ServerHello, SNI, etc.)
+- Decrypted HTTP request/response
 
-### Hex 视图
+### Hex View
 
-按 `x` 查看原始数据的十六进制和 ASCII 表示。
+Press `x` to view the raw data in hexadecimal and ASCII representation.
 
-## 项目结构
+## Project Structure
 
 ```
 pktanalyzer/
-├── main.go              # 程序入口
+├── main.go              # Program entry point
 ├── capture/
-│   ├── capture.go       # 抓包引擎和协议解析
-│   ├── protocols.go     # 扩展协议解析器
-│   └── stream.go        # TCP 流重组
+│   ├── capture.go       # Capture engine and protocol parsing
+│   ├── protocols.go     # Extended protocol parsers
+│   └── stream.go        # TCP stream reassembly
 ├── stream/
-│   ├── stream.go        # TCP 流管理
-│   ├── reassembly.go    # TCP 重组缓冲区
-│   ├── http.go          # HTTP/1.1 解析
-│   ├── http2.go         # HTTP/2 帧解析器
-│   ├── hpack.go         # HPACK 头部压缩/解压
-│   ├── http2_stream.go  # HTTP/2 流管理和连接状态
-│   └── websocket.go     # WebSocket 协议解析 (RFC 6455)
+│   ├── stream.go        # TCP stream management
+│   ├── reassembly.go    # TCP reassembly buffer
+│   ├── http.go          # HTTP/1.1 parsing
+│   ├── http2.go         # HTTP/2 frame parser
+│   ├── hpack.go         # HPACK header compression/decompression
+│   ├── http2_stream.go  # HTTP/2 stream management and connection state
+│   └── websocket.go     # WebSocket protocol parsing (RFC 6455)
 ├── filter/
-│   └── filter.go        # 显示过滤器 (expr-lang/expr)
+│   └── filter.go        # Display filter (expr-lang/expr)
 ├── expert/
-│   ├── types.go         # 专家信息类型定义 (Severity, Group, ExpertInfo)
-│   ├── expert.go        # 专家分析器主程序
-│   ├── tcp.go           # TCP 异常检测 (重传、乱序、零窗口等)
-│   ├── dns.go           # DNS 异常检测 (NXDOMAIN、超时等)
-│   └── http.go          # HTTP 异常检测 (4xx/5xx、慢响应等)
+│   ├── types.go         # Expert info type definitions (Severity, Group, ExpertInfo)
+│   ├── expert.go        # Expert analyzer main program
+│   ├── tcp.go           # TCP anomaly detection (Retransmission, Out-of-Order, ZeroWindow, etc.)
+│   ├── dns.go           # DNS anomaly detection (NXDOMAIN, Timeout, etc.)
+│   └── http.go          # HTTP anomaly detection (4xx/5xx, Slow Response, etc.)
 ├── fields/
-│   └── fields.go        # 协议字段注册表
+│   └── fields.go        # Protocol field registry
 ├── export/
-│   └── export.go        # CLI 导出 (text/json/fields)
+│   └── export.go        # CLI export (text/json/fields)
 ├── stats/
-│   └── stats.go         # 统计分析
+│   └── stats.go         # Statistical analysis
 ├── tls/
-│   ├── keylog.go        # SSLKEYLOGFILE 解析
-│   ├── parser.go        # TLS 协议解析 (含 ALPN 扩展)
-│   ├── prf.go           # 密钥派生函数
-│   └── decrypt.go       # TLS 解密引擎
+│   ├── keylog.go        # SSLKEYLOGFILE parsing
+│   ├── parser.go        # TLS protocol parsing (including ALPN extension)
+│   ├── prf.go           # Key derivation function
+│   └── decrypt.go       # TLS decryption engine
 ├── agent/
-│   ├── agent.go         # AI Agent 协调器
-│   ├── tools.go         # AI 工具定义与执行
+│   ├── agent.go         # AI Agent coordinator
+│   ├── tools.go         # AI tool definitions and execution
 │   ├── llm/
-│   │   ├── types.go     # 统一 LLM 抽象层 (Message, Tool, Client)
-│   │   └── factory.go   # Provider 检测与配置
+│   │   ├── types.go     # Unified LLM abstraction layer (Message, Tool, Client)
+│   │   └── factory.go   # Provider detection and configuration
 │   ├── providers/
-│   │   ├── claude/      # Anthropic Claude 实现
-│   │   ├── openai/      # OpenAI 实现 (基础)
-│   │   ├── openrouter/  # OpenRouter (复用 OpenAI)
-│   │   └── ollama/      # Ollama (OpenAI 兼容)
+│   │   ├── claude/      # Anthropic Claude implementation
+│   │   ├── openai/      # OpenAI implementation (Base)
+│   │   ├── openrouter/  # OpenRouter (Reuses OpenAI)
+│   │   └── ollama/      # Ollama (OpenAI compatible)
 │   └── react/
-│       └── agent.go     # ReAct 推理循环
+│       └── agent.go     # ReAct reasoning loop
 ├── ui/
-│   ├── app.go           # TUI 主程序
-│   ├── model.go         # 数据模型
-│   ├── views.go         # 视图渲染 (含 HTTP/2 显示)
-│   └── styles.go        # 样式定义
+│   ├── app.go           # TUI main program
+│   ├── model.go         # Data model
+│   ├── views.go         # View rendering (including HTTP/2 display)
+│   └── styles.go        # Style definitions
 ├── go.mod
 └── go.sum
 ```
 
-## 技术栈
+## Tech Stack
 
-- [gopacket](https://github.com/google/gopacket) - 数据包捕获和解析
-- [bubbletea](https://github.com/charmbracelet/bubbletea) - TUI 框架
-- [lipgloss](https://github.com/charmbracelet/lipgloss) - 终端样式
-- [expr-lang/expr](https://github.com/expr-lang/expr) - 显示过滤器表达式引擎
+- [gopacket](https://github.com/google/gopacket) - Packet capture and parsing
+- [bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework
+- [lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
+- [expr-lang/expr](https://github.com/expr-lang/expr) - Display filter expression engine
 
-## 注意事项
+## Notes
 
-- 实时抓包需要 root 权限
-- TLS 解密仅支持有密钥的会话
-- 需要捕获完整的 TLS 握手过程才能解密
-- 支持的加密套件：AES-128/256-GCM, AES-128/256-CBC
-- AI 助手需要设置对应 LLM Provider 的环境变量
+- Real-time capture requires root privileges.
+- TLS decryption only supports sessions with available keys.
+- Requires capturing the complete TLS handshake process to decrypt.
+- Supported cipher suites: AES-128/256-GCM, AES-128/256-CBC.
+- AI assistant requires setting the environment variable for the corresponding LLM Provider.
 
-## 环境变量
+## Environment Variables
 
-| 变量                 | 说明                                                                |
+| Variable             | Description                                                         |
 | -------------------- | ------------------------------------------------------------------- |
-| `AI_PROVIDER`        | 显式指定 LLM Provider：`claude`, `openai`, `openrouter`, `ollama`   |
-| `AI_MODEL`           | 自定义模型名称（覆盖默认模型）                                      |
-| `ANTHROPIC_API_KEY`  | Claude API 密钥                                                     |
-| `ANTHROPIC_BASE_URL` | Claude API 地址（默认 `https://api.anthropic.com/v1`）              |
-| `OPENAI_API_KEY`     | OpenAI API 密钥                                                     |
-| `OPENAI_BASE_URL`    | OpenAI API 地址（默认 `https://api.openai.com/v1`，可用于兼容 API） |
-| `OPENROUTER_API_KEY` | OpenRouter API 密钥                                                 |
-| `OLLAMA_BASE_URL`    | Ollama API 地址（默认 `http://localhost:11434/v1`）                 |
-| `SSLKEYLOGFILE`      | TLS 密钥日志文件路径                                                |
+| `AI_PROVIDER`        | Explicitly specify LLM Provider: `claude`, `openai`, `openrouter`, `ollama` |
+| `AI_MODEL`           | Custom model name (overrides default)                               |
+| `ANTHROPIC_API_KEY`  | Claude API Key                                                      |
+| `ANTHROPIC_BASE_URL` | Claude API URL (default `https://api.anthropic.com/v1`)             |
+| `OPENAI_API_KEY`     | OpenAI API Key                                                      |
+| `OPENAI_BASE_URL`    | OpenAI API URL (default `https://api.openai.com/v1`, for compatible APIs) |
+| `OPENROUTER_API_KEY` | OpenRouter API Key                                                  |
+| `OLLAMA_BASE_URL`    | Ollama API URL (default `http://localhost:11434/v1`)                |
+| `SSLKEYLOGFILE`      | TLS key log file path                                               |
 
 ## License
 

@@ -97,10 +97,10 @@ type HTTP2DataPayload struct {
 
 // HTTP2HeadersPayload represents HEADERS frame payload
 type HTTP2HeadersPayload struct {
-	PadLength         uint8
-	Exclusive         bool
-	StreamDependency  uint32
-	Weight            uint8
+	PadLength           uint8
+	Exclusive           bool
+	StreamDependency    uint32
+	Weight              uint8
 	HeaderBlockFragment []byte
 }
 

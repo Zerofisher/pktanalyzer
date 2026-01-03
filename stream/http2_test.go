@@ -9,8 +9,8 @@ func TestHTTP2FrameParsing(t *testing.T) {
 	// Length: 18 (0x000012), Type: SETTINGS (0x04), Flags: 0x00, Stream ID: 0
 	settingsFrame := []byte{
 		0x00, 0x00, 0x12, // Length: 18
-		0x04,             // Type: SETTINGS
-		0x00,             // Flags
+		0x04,                   // Type: SETTINGS
+		0x00,                   // Flags
 		0x00, 0x00, 0x00, 0x00, // Stream ID: 0
 		// Settings (3 settings, 6 bytes each)
 		0x00, 0x03, 0x00, 0x00, 0x00, 0x64, // MAX_CONCURRENT_STREAMS: 100
@@ -57,8 +57,8 @@ func TestHTTP2HeadersFrame(t *testing.T) {
 	// Length: 5, Type: HEADERS (0x01), Flags: END_HEADERS (0x04), Stream ID: 1
 	headersFrame := []byte{
 		0x00, 0x00, 0x05, // Length: 5
-		0x01,             // Type: HEADERS
-		0x04,             // Flags: END_HEADERS
+		0x01,                   // Type: HEADERS
+		0x04,                   // Flags: END_HEADERS
 		0x00, 0x00, 0x00, 0x01, // Stream ID: 1
 		// Header block (minimal)
 		0x82, 0x84, 0x86, 0x41, 0x8a, // Compressed headers
@@ -93,8 +93,8 @@ func TestHTTP2DataFrame(t *testing.T) {
 	// Length: 11, Type: DATA (0x00), Flags: END_STREAM (0x01), Stream ID: 1
 	dataFrame := []byte{
 		0x00, 0x00, 0x0b, // Length: 11
-		0x00,             // Type: DATA
-		0x01,             // Flags: END_STREAM
+		0x00,                   // Type: DATA
+		0x01,                   // Flags: END_STREAM
 		0x00, 0x00, 0x00, 0x01, // Stream ID: 1
 		// Payload: "Hello World"
 		0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64,
@@ -151,8 +151,8 @@ func TestHTTP2GoAwayFrame(t *testing.T) {
 	// GOAWAY frame: Last Stream ID: 7, Error: NO_ERROR
 	goawayFrame := []byte{
 		0x00, 0x00, 0x08, // Length: 8
-		0x07,             // Type: GOAWAY
-		0x00,             // Flags
+		0x07,                   // Type: GOAWAY
+		0x00,                   // Flags
 		0x00, 0x00, 0x00, 0x00, // Stream ID: 0
 		0x00, 0x00, 0x00, 0x07, // Last Stream ID: 7
 		0x00, 0x00, 0x00, 0x00, // Error: NO_ERROR
@@ -187,8 +187,8 @@ func TestHTTP2WindowUpdateFrame(t *testing.T) {
 	// WINDOW_UPDATE frame: Stream 1, increment 65535
 	windowFrame := []byte{
 		0x00, 0x00, 0x04, // Length: 4
-		0x08,             // Type: WINDOW_UPDATE
-		0x00,             // Flags
+		0x08,                   // Type: WINDOW_UPDATE
+		0x00,                   // Flags
 		0x00, 0x00, 0x00, 0x01, // Stream ID: 1
 		0x00, 0x00, 0xff, 0xff, // Window Size Increment: 65535
 	}
@@ -214,8 +214,8 @@ func TestHTTP2PingFrame(t *testing.T) {
 	// PING frame with ACK
 	pingFrame := []byte{
 		0x00, 0x00, 0x08, // Length: 8
-		0x06,             // Type: PING
-		0x01,             // Flags: ACK
+		0x06,                   // Type: PING
+		0x01,                   // Flags: ACK
 		0x00, 0x00, 0x00, 0x00, // Stream ID: 0
 		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // Opaque data
 	}
@@ -241,13 +241,13 @@ func TestMultipleFrames(t *testing.T) {
 	data := []byte{
 		// Frame 1: SETTINGS ACK
 		0x00, 0x00, 0x00, // Length: 0
-		0x04,             // Type: SETTINGS
-		0x01,             // Flags: ACK
+		0x04,                   // Type: SETTINGS
+		0x01,                   // Flags: ACK
 		0x00, 0x00, 0x00, 0x00, // Stream ID: 0
 		// Frame 2: PING
 		0x00, 0x00, 0x08, // Length: 8
-		0x06,             // Type: PING
-		0x00,             // Flags
+		0x06,                   // Type: PING
+		0x00,                   // Flags
 		0x00, 0x00, 0x00, 0x00, // Stream ID: 0
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}

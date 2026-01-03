@@ -14,13 +14,11 @@ import (
 
 // ToolExecutor handles tool execution with security constraints
 type ToolExecutor struct {
-	capturer    *capture.Capturer
-	packets     []capture.PacketInfo
-	packetMu    sync.RWMutex
-	isCapturing bool
-	captureMu   sync.Mutex
-	packetChan  <-chan capture.PacketInfo
-	stopChan    chan struct{}
+	capturer   *capture.Capturer
+	packets    []capture.PacketInfo
+	packetMu   sync.RWMutex
+	packetChan <-chan capture.PacketInfo
+	stopChan   chan struct{}
 
 	// Security configuration
 	redactConfig  *RedactConfig

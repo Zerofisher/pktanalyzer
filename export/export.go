@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
+
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/fields"
-	"strings"
 )
 
 // OutputFormat represents the output format type
@@ -21,15 +22,15 @@ const (
 
 // Exporter handles packet export
 type Exporter struct {
-	format       OutputFormat
-	writer       io.Writer
-	registry     *fields.Registry
-	fields       []string // for -e field extraction
-	showDetail   bool     // -V verbose
-	showHex      bool     // -x hex dump
-	count        int      // packets exported
-	maxCount     int      // -c limit (0 = unlimited)
-	firstPacket  bool     // track first packet for JSON array
+	format      OutputFormat
+	writer      io.Writer
+	registry    *fields.Registry
+	fields      []string // for -e field extraction
+	showDetail  bool     // -V verbose
+	showHex     bool     // -x hex dump
+	count       int      // packets exported
+	maxCount    int      // -c limit (0 = unlimited)
+	firstPacket bool     // track first packet for JSON array
 }
 
 // NewExporter creates a new exporter
@@ -158,31 +159,31 @@ func (e *Exporter) exportText(pkt *capture.PacketInfo) error {
 
 // PacketJSON represents a packet in JSON format
 type PacketJSON struct {
-	FrameNumber    int              `json:"frame.number"`
-	FrameTime      string           `json:"frame.time"`
-	FrameTimeEpoch float64          `json:"frame.time_epoch"`
-	FrameLen       int              `json:"frame.len"`
-	FrameProtocols string           `json:"frame.protocols"`
-	EthSrc         string           `json:"eth.src,omitempty"`
-	EthDst         string           `json:"eth.dst,omitempty"`
-	EthType        string           `json:"eth.type,omitempty"`
-	IPSrc          string           `json:"ip.src,omitempty"`
-	IPDst          string           `json:"ip.dst,omitempty"`
-	IPProto        string           `json:"ip.proto,omitempty"`
-	TCPSrcPort     *uint16          `json:"tcp.srcport,omitempty"`
-	TCPDstPort     *uint16          `json:"tcp.dstport,omitempty"`
-	TCPSeq         *uint32          `json:"tcp.seq,omitempty"`
-	TCPAck         *uint32          `json:"tcp.ack,omitempty"`
-	TCPFlags       *uint16          `json:"tcp.flags,omitempty"`
-	TCPLen         *int             `json:"tcp.len,omitempty"`
-	TCPStream      string           `json:"tcp.stream,omitempty"`
-	UDPSrcPort     *uint16          `json:"udp.srcport,omitempty"`
-	UDPDstPort     *uint16          `json:"udp.dstport,omitempty"`
-	Protocol       string           `json:"protocol"`
-	Info           string           `json:"info"`
-	SNI            string           `json:"tls.sni,omitempty"`
-	Decrypted      bool             `json:"decrypted,omitempty"`
-	Layers         []LayerJSON      `json:"layers,omitempty"`
+	FrameNumber    int         `json:"frame.number"`
+	FrameTime      string      `json:"frame.time"`
+	FrameTimeEpoch float64     `json:"frame.time_epoch"`
+	FrameLen       int         `json:"frame.len"`
+	FrameProtocols string      `json:"frame.protocols"`
+	EthSrc         string      `json:"eth.src,omitempty"`
+	EthDst         string      `json:"eth.dst,omitempty"`
+	EthType        string      `json:"eth.type,omitempty"`
+	IPSrc          string      `json:"ip.src,omitempty"`
+	IPDst          string      `json:"ip.dst,omitempty"`
+	IPProto        string      `json:"ip.proto,omitempty"`
+	TCPSrcPort     *uint16     `json:"tcp.srcport,omitempty"`
+	TCPDstPort     *uint16     `json:"tcp.dstport,omitempty"`
+	TCPSeq         *uint32     `json:"tcp.seq,omitempty"`
+	TCPAck         *uint32     `json:"tcp.ack,omitempty"`
+	TCPFlags       *uint16     `json:"tcp.flags,omitempty"`
+	TCPLen         *int        `json:"tcp.len,omitempty"`
+	TCPStream      string      `json:"tcp.stream,omitempty"`
+	UDPSrcPort     *uint16     `json:"udp.srcport,omitempty"`
+	UDPDstPort     *uint16     `json:"udp.dstport,omitempty"`
+	Protocol       string      `json:"protocol"`
+	Info           string      `json:"info"`
+	SNI            string      `json:"tls.sni,omitempty"`
+	Decrypted      bool        `json:"decrypted,omitempty"`
+	Layers         []LayerJSON `json:"layers,omitempty"`
 }
 
 // LayerJSON represents a protocol layer in JSON

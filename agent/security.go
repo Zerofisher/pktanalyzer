@@ -43,11 +43,11 @@ func DefaultRedactConfig() *RedactConfig {
 
 // Evidence tracks packet/connection references for AI conclusions
 type Evidence struct {
-	PacketIDs     []int    // Related packet numbers
-	Connections   []string // Related connection keys (IP:port-IP:port)
-	StreamIDs     []int    // Related stream IDs
-	Summary       string   // Brief summary of what was found
-	EvidenceType  string   // Type: "anomaly", "connection", "dns", "http", etc.
+	PacketIDs    []int    // Related packet numbers
+	Connections  []string // Related connection keys (IP:port-IP:port)
+	StreamIDs    []int    // Related stream IDs
+	Summary      string   // Brief summary of what was found
+	EvidenceType string   // Type: "anomaly", "connection", "dns", "http", etc.
 }
 
 // FormatEvidence formats evidence for tool output
@@ -95,8 +95,8 @@ var (
 	ipv6Regex = regexp.MustCompile(`([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)`)
 	macRegex  = regexp.MustCompile(`([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}`)
 	// credRegex matches common credential patterns in HTTP headers
-	authHeaderRegex   = regexp.MustCompile(`(?i)(Authorization|Cookie|Set-Cookie|X-Api-Key|X-Auth-Token):\s*(.+)`)
-	queryParamsRegex  = regexp.MustCompile(`\?([^#\s]+)`)
+	authHeaderRegex  = regexp.MustCompile(`(?i)(Authorization|Cookie|Set-Cookie|X-Api-Key|X-Auth-Token):\s*(.+)`)
+	queryParamsRegex = regexp.MustCompile(`\?([^#\s]+)`)
 )
 
 // hashShort returns first 8 chars of SHA256 hash for anonymization
@@ -311,8 +311,8 @@ func NewConfirmationRequest(authType AuthorizationType, toolName string, ctx map
 
 // AuthorizationStore manages pending authorizations with session-based grants
 type AuthorizationStore struct {
-	pendingRequest  *ConfirmationRequest // Current pending request
-	sessionGrants   map[AuthorizationType]bool // Grants for this session
+	pendingRequest *ConfirmationRequest       // Current pending request
+	sessionGrants  map[AuthorizationType]bool // Grants for this session
 }
 
 // NewAuthorizationStore creates a new authorization store

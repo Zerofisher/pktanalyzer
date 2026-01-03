@@ -1,0 +1,70 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocritic
+    - gosec
+
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Printf
+        - fmt.Print
+        - fmt.Println
+        - fmt.Fprint
+        - fmt.Fprintln
+        - fmt.Sscanf
+        - (io.Writer).Write
+        - (*os.File).Close
+        - (io.Closer).Close
+        - io.ReadCloser.Close
+        - (*net/http.Response).Body.Close
+        - os.Stdout.Write
+        - json.Unmarshal
+
+    govet:
+      enable:
+        - shadow
+
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - singleCaseSwitch
+
+    gosec:
+      excludes:
+        - G104
+
+run:
+  timeout: 5m
+  build-tags:
+    - integration
+
+output:
+  formats:
+    text:
+      path: stdout
+      colors: true
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Zerofisher/pktanalyzer

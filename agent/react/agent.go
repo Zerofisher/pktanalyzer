@@ -28,9 +28,9 @@ func DefaultPolicy() *Policy {
 		MaxToolsPerTurn:   5,
 		ToolTimeout:       30 * time.Second,
 		ContinueOnError:   true,
-		TrimOldMessages:   true,  // P0-3: Enable by default to prevent context explosion
-		MaxMessagesKept:   30,    // P0-3: Reduced from 50 to prevent drift
-		MaxTotalToolCalls: 20,    // P0-3: Prevent infinite tool call loops
+		TrimOldMessages:   true, // P0-3: Enable by default to prevent context explosion
+		MaxMessagesKept:   30,   // P0-3: Reduced from 50 to prevent drift
+		MaxTotalToolCalls: 20,   // P0-3: Prevent infinite tool call loops
 	}
 }
 

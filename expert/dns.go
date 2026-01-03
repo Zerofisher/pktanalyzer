@@ -23,13 +23,13 @@ type DNSAnalysisContext struct {
 
 // DNSQueryRecord tracks a DNS query
 type DNSQueryRecord struct {
-	PacketNum   int
-	Timestamp   time.Time
-	QueryName   string
-	QueryType   string
-	SrcIP       string
-	DstIP       string
-	Checked     bool // Whether we've already reported this as unanswered
+	PacketNum int
+	Timestamp time.Time
+	QueryName string
+	QueryType string
+	SrcIP     string
+	DstIP     string
+	Checked   bool // Whether we've already reported this as unanswered
 }
 
 // DNSExpertType represents specific DNS expert info types

@@ -134,11 +134,11 @@ type WebSocketHandshake struct {
 	Extensions          []string // Sec-WebSocket-Extensions
 
 	// Response fields
-	StatusCode             int
-	SecWebSocketAccept     string
-	SelectedSubprotocol    string
-	SelectedExtensions     []string
-	PermessageDeflate      bool // Extension: permessage-deflate
+	StatusCode          int
+	SecWebSocketAccept  string
+	SelectedSubprotocol string
+	SelectedExtensions  []string
+	PermessageDeflate   bool // Extension: permessage-deflate
 
 	// Validation
 	IsValid bool

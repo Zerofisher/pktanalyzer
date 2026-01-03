@@ -188,18 +188,18 @@ func TestTCPZeroWindow(t *testing.T) {
 
 	// Setup stream
 	pkt1 := &capture.PacketInfo{
-		Number:     1,
-		Timestamp:  time.Now(),
-		Protocol:   "TCP",
-		SrcIP:      "192.168.1.1",
-		DstIP:      "192.168.1.2",
-		SrcPort:    "12345",
-		DstPort:    "80",
-		TCPSeq:     1000,
-		TCPAck:     500,
-		TCPFlags:   0x010, // ACK
-		TCPWindow:  65535,
-		StreamKey:  "192.168.1.1:12345-192.168.1.2:80",
+		Number:    1,
+		Timestamp: time.Now(),
+		Protocol:  "TCP",
+		SrcIP:     "192.168.1.1",
+		DstIP:     "192.168.1.2",
+		SrcPort:   "12345",
+		DstPort:   "80",
+		TCPSeq:    1000,
+		TCPAck:    500,
+		TCPFlags:  0x010, // ACK
+		TCPWindow: 65535,
+		StreamKey: "192.168.1.1:12345-192.168.1.2:80",
 	}
 	ctx.Analyze(pkt1)
 

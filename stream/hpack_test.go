@@ -32,10 +32,10 @@ func TestHPACKLiteralHeaderIncremental(t *testing.T) {
 	// 0x40 (01xxxxxx) with index 0 means new name
 	// Then name length (7 prefix), then name, then value length, then value
 	data := []byte{
-		0x40,                                     // Literal with incremental indexing, index 0 (new name)
-		0x0a,                                     // Name length: 10 (no Huffman)
+		0x40,                                             // Literal with incremental indexing, index 0 (new name)
+		0x0a,                                             // Name length: 10 (no Huffman)
 		'c', 'u', 's', 't', 'o', 'm', '-', 'k', 'e', 'y', // Name: "custom-key"
-		0x0d, // Value length: 13 (no Huffman)
+		0x0d,                                                            // Value length: 13 (no Huffman)
 		'c', 'u', 's', 't', 'o', 'm', '-', 'v', 'a', 'l', 'u', 'e', '.', // Value: "custom-value."
 	}
 
@@ -63,8 +63,8 @@ func TestHPACKLiteralHeaderWithIndexedName(t *testing.T) {
 	// Literal header with indexed name (:path from static table, index 4)
 	// 0x44 = 01000100, index 4
 	data := []byte{
-		0x44, // Literal with incremental indexing, index 4 (:path)
-		0x0c, // Value length: 12 (no Huffman)
+		0x44,                                                       // Literal with incremental indexing, index 4 (:path)
+		0x0c,                                                       // Value length: 12 (no Huffman)
 		'/', 's', 'a', 'm', 'p', 'l', 'e', '/', 'p', 'a', 't', 'h', // Value: "/sample/path"
 	}
 
@@ -124,10 +124,10 @@ func TestHPACKDynamicTable(t *testing.T) {
 
 	// Add a custom header with incremental indexing
 	data1 := []byte{
-		0x40,                               // Literal with incremental indexing
-		0x07,                               // Name length: 7
+		0x40,                              // Literal with incremental indexing
+		0x07,                              // Name length: 7
 		'm', 'y', '-', 'n', 'a', 'm', 'e', // Name
-		0x08,                                     // Value length: 8
+		0x08,                                   // Value length: 8
 		'm', 'y', '-', 'v', 'a', 'l', 'u', 'e', // Value
 	}
 
@@ -161,9 +161,9 @@ func TestHPACKInteger(t *testing.T) {
 		prefixBits int
 		expected   uint64
 	}{
-		{"small value", []byte{0x0a}, 5, 10},                // 10 < 31
-		{"max prefix", []byte{0x1f, 0x00}, 5, 31},           // 31 = 0x1f
-		{"multi-byte", []byte{0x1f, 0x9a, 0x0a}, 5, 1337},   // 1337 = 31 + 128*10 + 26
+		{"small value", []byte{0x0a}, 5, 10},              // 10 < 31
+		{"max prefix", []byte{0x1f, 0x00}, 5, 31},         // 31 = 0x1f
+		{"multi-byte", []byte{0x1f, 0x9a, 0x0a}, 5, 1337}, // 1337 = 31 + 128*10 + 26
 		{"zero", []byte{0x00}, 7, 0},
 	}
 

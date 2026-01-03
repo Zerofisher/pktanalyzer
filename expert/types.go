@@ -52,12 +52,12 @@ func (s Severity) Symbol() string {
 type Group string
 
 const (
-	GroupSequence   Group = "Sequence"    // TCP sequence analysis
-	GroupResponse   Group = "Response"    // Request/Response analysis
-	GroupProtocol   Group = "Protocol"    // Protocol-level issues
-	GroupSecurity   Group = "Security"    // Security concerns
-	GroupMalformed  Group = "Malformed"   // Malformed packets
-	GroupReassembly Group = "Reassembly"  // Reassembly issues
+	GroupSequence   Group = "Sequence"   // TCP sequence analysis
+	GroupResponse   Group = "Response"   // Request/Response analysis
+	GroupProtocol   Group = "Protocol"   // Protocol-level issues
+	GroupSecurity   Group = "Security"   // Security concerns
+	GroupMalformed  Group = "Malformed"  // Malformed packets
+	GroupReassembly Group = "Reassembly" // Reassembly issues
 )
 
 // ExpertInfo represents a single expert information entry

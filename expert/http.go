@@ -24,12 +24,12 @@ type HTTPAnalysisContext struct {
 
 // HTTPRequestRecord tracks an HTTP request
 type HTTPRequestRecord struct {
-	PacketNum   int
-	Timestamp   time.Time
-	Method      string
-	URI         string
-	Host        string
-	StreamKey   string
+	PacketNum int
+	Timestamp time.Time
+	Method    string
+	URI       string
+	Host      string
+	StreamKey string
 }
 
 // HTTPExpertType represents specific HTTP expert info types

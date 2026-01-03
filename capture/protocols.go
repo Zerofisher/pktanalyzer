@@ -512,11 +512,11 @@ func (m *SRVLOCMessage) GetInfo() string {
 
 // WS-Discovery parser - Port 3702
 type WSDiscoveryMessage struct {
-	Action      string
-	MessageID   string
-	To          string
-	Types       string
-	IsProbe     bool
+	Action       string
+	MessageID    string
+	To           string
+	Types        string
+	IsProbe      bool
 	IsProbeMatch bool
 }
 
@@ -686,19 +686,19 @@ func (m *IGMPMessage) GetInfo() string {
 
 // DHCP/BOOTP parser
 type DHCPMessage struct {
-	Op        uint8
-	HType     uint8
-	HLen      uint8
-	Hops      uint8
-	XID       uint32
-	Secs      uint16
-	Flags     uint16
-	CIAddr    string
-	YIAddr    string
-	SIAddr    string
-	GIAddr    string
-	CHAddr    string
-	Options   map[uint8][]byte
+	Op          uint8
+	HType       uint8
+	HLen        uint8
+	Hops        uint8
+	XID         uint32
+	Secs        uint16
+	Flags       uint16
+	CIAddr      string
+	YIAddr      string
+	SIAddr      string
+	GIAddr      string
+	CHAddr      string
+	Options     map[uint8][]byte
 	MessageType uint8
 }
 
@@ -784,15 +784,15 @@ func (m *DHCPMessage) GetInfo() string {
 
 // NTP parser
 type NTPMessage struct {
-	LI          uint8
-	VN          uint8
-	Mode        uint8
-	Stratum     uint8
-	Poll        int8
-	Precision   int8
-	RootDelay   uint32
-	RootDisp    uint32
-	RefID       string
+	LI        uint8
+	VN        uint8
+	Mode      uint8
+	Stratum   uint8
+	Poll      int8
+	Precision int8
+	RootDelay uint32
+	RootDisp  uint32
+	RefID     string
 }
 
 func ParseNTP(data []byte) (*NTPMessage, error) {

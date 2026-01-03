@@ -31,25 +31,24 @@ type ChatMessage struct {
 
 // Model holds the application state
 type Model struct {
-	packets       []capture.PacketInfo
-	filteredPkts  []capture.PacketInfo
-	selectedIdx   int
-	viewMode      ViewMode
-	scrollOffset  int
-	detailScroll  int
-	hexScroll     int
-	width         int
-	height        int
-	packetChan    <-chan capture.PacketInfo
-	capturer      *capture.Capturer
-	filter        string
-	filterInput   string
-	filterActive  bool
-	stats         Stats
-	isLive        bool
-	paused        bool
-	showHelp      bool
-	helpScroll    int
+	packets      []capture.PacketInfo
+	filteredPkts []capture.PacketInfo
+	selectedIdx  int
+	viewMode     ViewMode
+	scrollOffset int
+	detailScroll int
+	hexScroll    int
+	width        int
+	height       int
+	packetChan   <-chan capture.PacketInfo
+	capturer     *capture.Capturer
+	filter       string
+	filterActive bool
+	stats        Stats
+	isLive       bool
+	paused       bool
+	showHelp     bool
+	helpScroll   int
 
 	// Stream view state
 	streamSelectedIdx  int
@@ -60,7 +59,6 @@ type Model struct {
 	// AI Chat state
 	aiAgent         *agent.Agent
 	chatMessages    []ChatMessage
-	chatInput       string
 	chatInputActive bool
 	chatScroll      int
 	aiEnabled       bool
@@ -75,16 +73,16 @@ type Model struct {
 	aiStreamingMsgID int                      // Index of the message being streamed (-1 if none)
 
 	// Authorization confirmation dialog
-	showConfirmDialog   bool                        // Whether to show confirmation dialog
-	pendingConfirmation *agent.ConfirmationRequest  // Current pending confirmation
+	showConfirmDialog   bool                       // Whether to show confirmation dialog
+	pendingConfirmation *agent.ConfirmationRequest // Current pending confirmation
 
 	// Status message (for save operations, etc.)
 	statusMessage string
 	statusIsError bool
 
 	// Expert analysis
-	expertAnalyzer   *expert.Analyzer
-	expertScroll     int
+	expertAnalyzer    *expert.Analyzer
+	expertScroll      int
 	expertMinSeverity expert.Severity // Minimum severity to show
 }
 

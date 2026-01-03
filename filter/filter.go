@@ -3,12 +3,12 @@ package filter
 
 import (
 	"fmt"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"strconv"
 	"strings"
 
+	"github.com/Zerofisher/pktanalyzer/capture"
+
 	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
 )
 
 // PacketEnv is the environment for expression evaluation
@@ -98,11 +98,6 @@ type PacketEnv struct {
 	IsTLS  bool `expr:"is_tls"`
 	IsICMP bool `expr:"is_icmp"`
 	IsARP  bool `expr:"is_arp"`
-}
-
-// CompiledFilter holds a compiled filter expression
-type CompiledFilter struct {
-	program *vm.Program
 }
 
 // Compile compiles a display filter expression

@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/charmbracelet/lipgloss"
 )
 
 func (m Model) renderPacketList() string {
@@ -167,7 +168,7 @@ func (m Model) renderHexDump() string {
 
 		sb.WriteString(hexByteStyle.Render(hexPart.String()))
 		sb.WriteString(" ")
-		sb.WriteString(hexAsciiStyle.Render("|"+asciiPart.String()+"|"))
+		sb.WriteString(hexAsciiStyle.Render("|" + asciiPart.String() + "|"))
 		sb.WriteString("\n")
 	}
 
@@ -717,6 +718,9 @@ func formatAddr(ip, port string) string {
 }
 
 func truncateStr(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
 	if len(s) <= maxLen {
 		return s
 	}

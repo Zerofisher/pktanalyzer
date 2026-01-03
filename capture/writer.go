@@ -13,14 +13,14 @@ import (
 
 // PcapWriter writes packets to a pcap/pcapng file
 type PcapWriter struct {
-	file       *os.File
-	writer     *pcapgo.NgWriter
-	mu         sync.Mutex
-	count      int
-	filename   string
-	linkType   layers.LinkType
-	snapLen    uint32
-	closed     bool
+	file     *os.File
+	writer   *pcapgo.NgWriter
+	mu       sync.Mutex
+	count    int
+	filename string
+	linkType layers.LinkType
+	snapLen  uint32
+	closed   bool
 }
 
 // NewPcapWriter creates a new pcap writer

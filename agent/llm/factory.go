@@ -8,11 +8,11 @@ import (
 
 // ProviderConfig holds provider-specific configuration from environment
 type ProviderConfig struct {
-	Provider   Provider
-	APIKey     string
-	BaseURL    string
-	Model      string
-	Available  bool
+	Provider  Provider
+	APIKey    string
+	BaseURL   string
+	Model     string
+	Available bool
 }
 
 // DetectProvider detects available LLM provider from environment variables

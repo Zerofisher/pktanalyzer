@@ -4,6 +4,7 @@ package ollama
 import (
 	"fmt"
 	"os"
+
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openai"
 )
@@ -30,7 +31,7 @@ func New(cfg *llm.Config) (*openai.Client, error) {
 
 	// Ensure URL ends with /v1 for OpenAI compatibility
 	if cfg.BaseURL == "http://localhost:11434" {
-		cfg.BaseURL = cfg.BaseURL + "/v1"
+		cfg.BaseURL += "/v1"
 	}
 
 	// Get model from environment or use default

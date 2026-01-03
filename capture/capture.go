@@ -2,10 +2,11 @@ package capture
 
 import (
 	"fmt"
-	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/Zerofisher/pktanalyzer/tls"
 	"strconv"
 	"time"
+
+	"github.com/Zerofisher/pktanalyzer/stream"
+	"github.com/Zerofisher/pktanalyzer/tls"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"

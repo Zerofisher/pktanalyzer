@@ -3,36 +3,9 @@ package agent
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Zerofisher/pktanalyzer/capture"
 )
-
-// createTestExecutor creates a ToolExecutor with mock packet data
-func createTestExecutor() *ToolExecutor {
-	exec := NewToolExecutor()
-	baseTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
-
-	// Add mock packets simulating real traffic
-	mockPackets := []capture.PacketInfo{
-		{Number: 1, Timestamp: baseTime, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "93.184.216.34", SrcPort: "54321", DstPort: "443", Length: 74, Info: "54321 → 443 [SYN] Seq=0"},
-		{Number: 2, Timestamp: baseTime, Protocol: "TCP", SrcIP: "93.184.216.34", DstIP: "192.168.1.100", SrcPort: "443", DstPort: "54321", Length: 74, Info: "443 → 54321 [SYN, ACK] Seq=0 Ack=1"},
-		{Number: 3, Timestamp: baseTime, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "93.184.216.34", SrcPort: "54321", DstPort: "443", Length: 66, Info: "54321 → 443 [ACK] Seq=1 Ack=1"},
-		{Number: 4, Timestamp: baseTime.Add(time.Second), Protocol: "DNS", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", SrcPort: "12345", DstPort: "53", Length: 70, Info: "Standard query A example.com"},
-		{Number: 5, Timestamp: baseTime.Add(time.Second), Protocol: "DNS", SrcIP: "8.8.8.8", DstIP: "192.168.1.100", SrcPort: "53", DstPort: "12345", Length: 86, Info: "Standard query response A 93.184.216.34"},
-		{Number: 6, Timestamp: baseTime.Add(2 * time.Second), Protocol: "HTTP", SrcIP: "192.168.1.100", DstIP: "93.184.216.34", SrcPort: "54322", DstPort: "80", Length: 200, Info: "GET /index.html HTTP/1.1"},
-		{Number: 7, Timestamp: baseTime.Add(2 * time.Second), Protocol: "HTTP", SrcIP: "93.184.216.34", DstIP: "192.168.1.100", SrcPort: "80", DstPort: "54322", Length: 500, Info: "HTTP/1.1 200 OK"},
-		{Number: 8, Timestamp: baseTime.Add(3 * time.Second), Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "93.184.216.34", SrcPort: "54321", DstPort: "443", Length: 66, Info: "54321 → 443 [RST] Seq=100"},
-		{Number: 9, Timestamp: baseTime.Add(4 * time.Second), Protocol: "ARP", SrcIP: "192.168.1.1", DstIP: "192.168.1.100", SrcMAC: "00:11:22:33:44:55", Length: 42, Info: "Who has 192.168.1.100? Tell 192.168.1.1"},
-		{Number: 10, Timestamp: baseTime.Add(4 * time.Second), Protocol: "ARP", SrcIP: "192.168.1.100", DstIP: "192.168.1.1", SrcMAC: "aa:bb:cc:dd:ee:ff", Length: 42, Info: "192.168.1.100 is at aa:bb:cc:dd:ee:ff"},
-	}
-
-	for _, p := range mockPackets {
-		exec.AddPacket(p)
-	}
-
-	return exec
-}
 
 // TestGetStatisticsFirst tests that get_statistics provides good overview
 func TestGetStatisticsFirst(t *testing.T) {
@@ -326,7 +299,7 @@ func TestDetectAnomaliesWithEvidence(t *testing.T) {
 			SrcIP:    srcIP,
 			DstIP:    "192.168.1.100",
 			SrcPort:  "12345",
-			DstPort:  string(rune('1') + rune(i)) + "000", // Different ports
+			DstPort:  string(rune('1')+rune(i)) + "000", // Different ports
 			Info:     "[SYN] Seq=0",
 		})
 	}

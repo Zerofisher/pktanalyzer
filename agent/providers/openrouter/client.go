@@ -4,6 +4,7 @@ package openrouter
 import (
 	"fmt"
 	"os"
+
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openai"
 )

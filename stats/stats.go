@@ -4,10 +4,11 @@ package stats
 import (
 	"fmt"
 	"io"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Zerofisher/pktanalyzer/capture"
 )
 
 // Manager collects and reports various traffic statistics

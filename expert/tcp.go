@@ -48,24 +48,24 @@ type TCPStreamState struct {
 
 // TCPPacketRecord stores minimal info about a TCP packet for analysis
 type TCPPacketRecord struct {
-	PacketNum   int
-	Timestamp   time.Time
-	Seq         uint32
-	Ack         uint32
-	Flags       uint16
-	PayloadLen  int
-	Window      uint16
+	PacketNum    int
+	Timestamp    time.Time
+	Seq          uint32
+	Ack          uint32
+	Flags        uint16
+	PayloadLen   int
+	Window       uint16
 	IsFromClient bool
 }
 
 // SequenceTracker tracks sequence numbers for one direction
 type SequenceTracker struct {
-	NextExpectedSeq uint32            // Next expected sequence number
-	MaxSeqSeen      uint32            // Highest sequence number seen
+	NextExpectedSeq uint32                 // Next expected sequence number
+	MaxSeqSeen      uint32                 // Highest sequence number seen
 	SeenSegments    map[uint32]SegmentInfo // Maps seq -> segment info
-	LastAckNum      uint32            // Last ACK number received
-	DupACKCount     int               // Consecutive duplicate ACKs
-	LastDupACK      uint32            // Last duplicate ACK value
+	LastAckNum      uint32                 // Last ACK number received
+	DupACKCount     int                    // Consecutive duplicate ACKs
+	LastDupACK      uint32                 // Last duplicate ACK value
 }
 
 // SegmentInfo stores info about a seen segment

@@ -53,10 +53,6 @@ var (
 	dimStyle = lipgloss.NewStyle().
 			Foreground(dimColor)
 
-	borderStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(primaryColor)
-
 	helpStyle = lipgloss.NewStyle().
 			Foreground(dimColor).
 			Padding(0, 1)

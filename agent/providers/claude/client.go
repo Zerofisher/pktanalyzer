@@ -10,8 +10,9 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"strings"
+
+	"github.com/Zerofisher/pktanalyzer/agent/llm"
 )
 
 const (

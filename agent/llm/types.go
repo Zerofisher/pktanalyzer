@@ -119,11 +119,11 @@ type Client interface {
 
 // Config holds common configuration for LLM clients
 type Config struct {
-	APIKey      string        // API key for authentication
-	BaseURL     string        // Base URL for API requests
-	Model       string        // Model identifier
-	Timeout     time.Duration // Request timeout
-	MaxRetries  int           // Max retry attempts
+	APIKey      string            // API key for authentication
+	BaseURL     string            // Base URL for API requests
+	Model       string            // Model identifier
+	Timeout     time.Duration     // Request timeout
+	MaxRetries  int               // Max retry attempts
 	ExtraHeader map[string]string // Extra HTTP headers
 }
 

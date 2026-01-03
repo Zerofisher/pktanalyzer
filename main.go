@@ -272,8 +272,6 @@ func main() {
 
 // runCLIMode runs in non-interactive CLI mode
 func runCLIMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, outputFormat string, maxCount int, showDetail, showHex bool, extractFields []string, displayFilter string) {
-	defer capturer.Stop()
-
 	// Determine output format
 	var format export.OutputFormat
 	switch outputFormat {
@@ -285,6 +283,7 @@ func runCLIMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer
 		format = export.FormatText
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown output format: %s\n", outputFormat)
+		capturer.Stop()
 		os.Exit(1)
 	}
 
@@ -305,6 +304,7 @@ func runCLIMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer
 		filterFunc, err = compileDisplayFilter(displayFilter)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error compiling display filter: %v\n", err)
+			capturer.Stop()
 			os.Exit(1)
 		}
 	}
@@ -312,6 +312,7 @@ func runCLIMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer
 	// Start output
 	if err := exporter.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting export: %v\n", err)
+		capturer.Stop()
 		os.Exit(1)
 	}
 
@@ -337,19 +338,18 @@ func runCLIMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer
 	if err := exporter.Finish(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error finishing export: %v\n", err)
 	}
+	capturer.Stop()
 }
 
 // runWriteMode writes packets to a pcapng file
 func runWriteMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, outputFile string, maxCount int, displayFilter string) {
-	defer capturer.Stop()
-
 	// Create pcap writer
 	writer, err := capture.NewPcapWriter(outputFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating output file: %v\n", err)
+		capturer.Stop()
 		os.Exit(1)
 	}
-	defer writer.Close()
 
 	// Compile display filter if specified
 	var filterFunc func(*capture.PacketInfo) bool
@@ -358,6 +358,8 @@ func runWriteMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 		filterFunc, err = compileDisplayFilter(displayFilter)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error compiling display filter: %v\n", err)
+			writer.Close()
+			capturer.Stop()
 			os.Exit(1)
 		}
 	}
@@ -396,6 +398,8 @@ func runWriteMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 	}
 
 	fmt.Printf("\rWritten %d packets to %s\n", count, outputFile)
+	writer.Close()
+	capturer.Stop()
 }
 
 // listAvailableFields prints all available fields
@@ -437,8 +441,6 @@ func sortStrings(s []string) {
 
 // runStatsMode runs in statistics mode (-z option)
 func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, statsOption string, displayFilter string) {
-	defer capturer.Stop()
-
 	// Compile display filter if specified
 	var filterFunc func(*capture.PacketInfo) bool
 	if displayFilter != "" {
@@ -446,6 +448,7 @@ func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 		filterFunc, err = compileDisplayFilter(displayFilter)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error compiling display filter: %v\n", err)
+			capturer.Stop()
 			os.Exit(1)
 		}
 	}
@@ -453,6 +456,7 @@ func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 	// Check if expert mode
 	if statsOption == "expert" || strings.HasPrefix(statsOption, "expert,") {
 		runExpertMode(packetChan, filterFunc, statsOption)
+		capturer.Stop()
 		return
 	}
 
@@ -494,8 +498,10 @@ func runStatsMode(packetChan <-chan capture.PacketInfo, capturer *capture.Captur
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown statistics option: %s\n", statsOption)
 		fmt.Fprintf(os.Stderr, "Supported options: endpoints, conv,tcp, conv,udp, io,stat,<interval>, follow,tcp,ascii,<stream>, expert\n")
+		capturer.Stop()
 		os.Exit(1)
 	}
+	capturer.Stop()
 }
 
 // runExpertMode runs expert analysis on packets

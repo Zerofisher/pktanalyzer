@@ -136,7 +136,9 @@ func DeriveKeys(masterSecret, clientRandom, serverRandom []byte, suite uint16) *
 	}
 
 	// key_block = PRF(master_secret, "key expansion", server_random + client_random)
-	seed := append(serverRandom, clientRandom...)
+	seed := make([]byte, 0, len(serverRandom)+len(clientRandom))
+	seed = append(seed, serverRandom...)
+	seed = append(seed, clientRandom...)
 	keyBlockLen := 2*info.MACLen + 2*info.KeyLen + 2*info.IVLen
 	keyBlock := PRF12(masterSecret, []byte("key expansion"), seed, keyBlockLen)
 

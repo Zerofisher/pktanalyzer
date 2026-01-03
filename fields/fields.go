@@ -3,9 +3,10 @@ package fields
 
 import (
 	"fmt"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"strconv"
 	"strings"
+
+	"github.com/Zerofisher/pktanalyzer/capture"
 )
 
 // FieldType represents the type of a field
@@ -24,10 +25,10 @@ const (
 
 // FieldDef defines a protocol field
 type FieldDef struct {
-	Name        string                               // Field name (e.g., "tcp.port")
-	Description string                               // Human-readable description
-	Type        FieldType                            // Value type
-	Extractor   func(*capture.PacketInfo) any        // Field value extractor
+	Name        string                        // Field name (e.g., "tcp.port")
+	Description string                        // Human-readable description
+	Type        FieldType                     // Value type
+	Extractor   func(*capture.PacketInfo) any // Field value extractor
 }
 
 // Registry holds all registered fields

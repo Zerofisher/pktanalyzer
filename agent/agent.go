@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"sync"
+
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/agent/providers/claude"
 	"github.com/Zerofisher/pktanalyzer/agent/providers/ollama"
@@ -10,7 +12,6 @@ import (
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openrouter"
 	"github.com/Zerofisher/pktanalyzer/agent/react"
 	"github.com/Zerofisher/pktanalyzer/capture"
-	"sync"
 )
 
 // Agent is the AI agent that can interact with users and execute tools

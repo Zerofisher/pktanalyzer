@@ -11,10 +11,10 @@
 - **TLS 解密**: 使用 SSLKEYLOGFILE 解密 HTTPS 流量
 - **TCP 流重组**: 跟踪和重组 TCP 会话，查看完整的数据流
 - **显示过滤器**: 类 Wireshark 语法的显示过滤 (`-Y`)
-- **CLI 导出**: tshark 兼容的命令行输出 (`-T text/json/fields`)
-- **统计分析**: 端点统计、会话统计、I/O 统计 (`-z`)
-- **流追踪**: 导出 TCP 流数据 (`-z follow,tcp,ascii`)
-- **专家信息系统**: TCP/DNS/HTTP 异常检测，类似 Wireshark Expert Info (`-z expert`)
+- **CLI 导出**: tshark 兼容的命令行输出 (`text`, `json`, `fields`)
+- **统计分析**: 端点统计、会话统计、I/O 统计 (`stats` 命令)
+- **流追踪**: 导出 TCP 流数据 (`follow` 命令)
+- **专家信息系统**: TCP/DNS/HTTP 异常检测，类似 Wireshark Expert Info (`stats expert`)
 - **AI 智能分析**: 集成 Claude/OpenAI，智能解释数据包和网络行为
 - **TUI 界面**: 交互式终端界面，支持滚动、过滤、详情查看、分屏显示
 
@@ -73,6 +73,8 @@ go build -o pktanalyzer
 
 ## 使用方法
 
+pktanalyzer 使用基于命令的结构。使用 `pktanalyzer --help` 查看所有可用命令。
+
 ### 基本用法
 
 ```bash
@@ -80,146 +82,136 @@ go build -o pktanalyzer
 ./pktanalyzer --help
 
 # 列出可用网络接口
-./pktanalyzer -D
+./pktanalyzer list interfaces
 
 # 列出可用字段
-./pktanalyzer -G fields
+./pktanalyzer list fields
 
 # 读取 pcap 文件 (TUI 模式)
-./pktanalyzer -r capture.pcapng
+./pktanalyzer read capture.pcapng
 
 # 实时抓包（需要 root 权限）
-sudo ./pktanalyzer -i en0
+sudo ./pktanalyzer capture en0
 
-# 使用 BPF 过滤器
-./pktanalyzer -r capture.pcapng -f "tcp port 80"
-sudo ./pktanalyzer -i en0 -f "host 192.168.1.1"
+# 使用 BPF 过滤器 (抓包过滤)
+./pktanalyzer read capture.pcapng --bpf "tcp port 80"
+sudo ./pktanalyzer capture en0 --bpf "host 192.168.1.1"
 ```
 
-### 保存数据包 (`-w`)
+### 保存数据包
 
-将捕获的数据包保存到 pcapng 文件：
+实时抓包并保存到 pcapng 文件：
 
 ```bash
 # 实时抓包并保存到文件
-sudo ./pktanalyzer -i en0 -w capture.pcapng
+sudo ./pktanalyzer capture write en0 capture.pcapng
 
 # 限制抓包数量
-sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
+sudo ./pktanalyzer capture write en0 capture.pcapng -c 100
 
-# 读取文件，过滤后保存
-./pktanalyzer -r input.pcapng -w filtered.pcapng -Y 'tcp.dstport == 443'
-
-# 提取特定协议的数据包
-./pktanalyzer -r input.pcapng -w http_only.pcapng -Y 'http'
+# 配合显示过滤器
+sudo ./pktanalyzer capture write en0 capture.pcapng -Y 'tcp.dstport == 443'
 ```
 
-**TUI 模式保存**：在 TUI 界面中按 `w` 键可以将当前（过滤后的）数据包保存到文件。文件名自动生成，格式为 `capture_YYYYMMDD_HHMMSS.pcapng`。
+**TUI 模式保存**：在 TUI 界面（通过 `capture` 或 `read` 启动）中，按 `w` 键可以将当前（过滤后的）数据包保存到文件。文件名自动生成，格式为 `capture_YYYYMMDD_HHMMSS.pcapng`。
 
 ### CLI 导出模式 (tshark 兼容)
 
 ```bash
 # 文本格式输出（一行摘要）
-./pktanalyzer -r capture.pcapng -T text -c 10
+./pktanalyzer read text capture.pcapng -c 10
 
 # JSON 格式输出
-./pktanalyzer -r capture.pcapng -T json -c 5
+./pktanalyzer read json capture.pcapng -c 5
 
 # 字段提取
-./pktanalyzer -r capture.pcapng -T fields -e frame.number -e ip.src -e ip.dst -e tcp.dstport
+./pktanalyzer read fields capture.pcapng -e frame.number -e ip.src -e ip.dst -e tcp.dstport
 
 # 详细输出（协议层信息）
-./pktanalyzer -r capture.pcapng -V -c 1
+./pktanalyzer read text capture.pcapng -V -c 1
 
 # 十六进制 dump
-./pktanalyzer -r capture.pcapng -x -c 1
+./pktanalyzer read text capture.pcapng -x -c 1
 ```
 
-### 显示过滤器 (`-Y`)
+### 显示过滤器 (`-Y` / `--filter`)
 
 使用类 Wireshark 语法过滤数据包：
 
 ```bash
 # 基础比较
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 80' -T text
+./pktanalyzer read text capture.pcapng -Y 'tcp.dstport == 80'
 
 # IP 地址过滤
-./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1"' -T text
+./pktanalyzer read text capture.pcapng -Y 'ip.src == "192.168.1.1"'
 
 # 逻辑组合
-./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1" and tcp' -T text
-./pktanalyzer -r capture.pcapng -Y 'tcp or udp' -T text
+./pktanalyzer read text capture.pcapng -Y 'ip.src == "192.168.1.1" and tcp'
+./pktanalyzer read text capture.pcapng -Y 'tcp or udp'
 
 # 字符串包含
-./pktanalyzer -r dns.pcapng -Y 'dns.qry.name contains "google"' -T text
+./pktanalyzer read text dns.pcapng -Y 'dns.qry.name contains "google"'
 
 # 协议过滤
-./pktanalyzer -r capture.pcapng -Y 'dns' -T text
-./pktanalyzer -r capture.pcapng -Y 'http' -T text
+./pktanalyzer read text capture.pcapng -Y 'dns'
+./pktanalyzer read text capture.pcapng -Y 'http'
 
 # 范围匹配
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport in [80, 443, 8080]' -T text
+./pktanalyzer read text capture.pcapng -Y 'tcp.dstport in [80, 443, 8080]'
 
 # 与 JSON 导出联动
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 443' -T json -c 10
+./pktanalyzer read json capture.pcapng -Y 'tcp.dstport == 443' -c 10
 ```
 
-支持的过滤字段：
+支持的过滤字段可以通过 `pktanalyzer list fields` 查看。
 
-- `frame.*`: number, len, time_epoch, protocols
-- `eth.*`: src, dst, type
-- `ip.*`: src, dst, proto, addr
-- `tcp.*`: srcport, dstport, port, seq, ack, flags.syn/ack/fin/rst/psh, len, stream
-- `udp.*`: srcport, dstport, port
-- `dns.*`: qry.name, qry.type, flags.response
-- `http.*`: request, response, method, uri, status
-- `tls.*`: handshake, handshake_type, sni
-
-### 统计分析 (`-z`)
+### 统计分析 (`stats`)
 
 ```bash
 # 端点统计
-./pktanalyzer -r capture.pcapng -z endpoints
+./pktanalyzer stats endpoints -r capture.pcapng
 
 # TCP 会话统计
-./pktanalyzer -r capture.pcapng -z conv,tcp
+./pktanalyzer stats conversations -r capture.pcapng --proto tcp
 
 # UDP 会话统计
-./pktanalyzer -r capture.pcapng -z conv,udp
+./pktanalyzer stats conversations -r capture.pcapng --proto udp
 
 # I/O 统计（1秒间隔）
-./pktanalyzer -r capture.pcapng -z io,stat,1
+./pktanalyzer stats io -r capture.pcapng --interval 1
 
 # I/O 统计（0.5秒间隔）
-./pktanalyzer -r capture.pcapng -z io,stat,0.5
+./pktanalyzer stats io -r capture.pcapng --interval 0.5
 ```
 
-### TCP 流追踪 (`-z follow`)
+### TCP 流追踪 (`follow`)
+
+首先通过 TUI 或分析工具确定流 ID，然后追踪它：
 
 ```bash
 # ASCII 格式导出流 #1
-./pktanalyzer -r capture.pcapng -z follow,tcp,ascii,1
+./pktanalyzer follow 1 -r capture.pcapng --format ascii
 
 # Hex 格式导出
-./pktanalyzer -r capture.pcapng -z follow,tcp,hex,1
+./pktanalyzer follow 1 -r capture.pcapng --format hex
 
 # Raw 格式（直接输出字节）
-./pktanalyzer -r capture.pcapng -z follow,tcp,raw,1 > stream.bin
+./pktanalyzer follow 1 -r capture.pcapng --format raw > stream.bin
 ```
 
-### 专家信息系统 (`-z expert`)
+### 专家信息系统 (`stats expert`)
 
 分析网络数据包中的异常和问题，类似 Wireshark 的 Expert Information 功能：
 
 ```bash
 # 显示所有专家信息
-./pktanalyzer -r capture.pcapng -z expert
+./pktanalyzer stats expert -r capture.pcapng
 
-# 只显示警告和错误（过滤 Note 级别以下）
-./pktanalyzer -r capture.pcapng -z expert,warning
+# 只显示警告和错误
+./pktanalyzer stats expert -r capture.pcapng --severity warning
 
 # 只显示错误
-./pktanalyzer -r capture.pcapng -z expert,error
+./pktanalyzer stats expert -r capture.pcapng --severity error
 ```
 
 **检测的 TCP 异常**:
@@ -267,7 +259,7 @@ sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
 
 ```bash
 # 读取文件并启用流重组
-./pktanalyzer -r capture.pcapng -S
+./pktanalyzer read capture.pcapng -S
 
 # 在 TUI 中按 's' 键可切换到流列表视图
 ```
@@ -278,10 +270,10 @@ sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
 
 ```bash
 # 启用流重组分析 HTTP/2 流量
-./pktanalyzer -r https_capture.pcapng -S
+./pktanalyzer read https_capture.pcapng -S
 
 # 配合 TLS 解密分析加密的 HTTP/2 流量
-./pktanalyzer -r https_capture.pcapng -S -k ~/sslkeys.log
+./pktanalyzer read https_capture.pcapng -S -k ~/sslkeys.log
 ```
 
 **TUI 操作步骤**:
@@ -340,10 +332,10 @@ export SSLKEYLOGFILE=~/sslkeys.log
 
 ```bash
 # 分析已保存的抓包文件
-./pktanalyzer -r https_capture.pcapng -k ~/sslkeys.log
+./pktanalyzer read https_capture.pcapng -k ~/sslkeys.log
 
 # 实时抓包并解密
-sudo ./pktanalyzer -i en0 -k ~/sslkeys.log
+sudo ./pktanalyzer capture en0 -k ~/sslkeys.log
 ```
 
 ### AI 智能分析
@@ -366,27 +358,27 @@ sudo ./pktanalyzer -i en0 -k ~/sslkeys.log
 ```bash
 # 使用 Claude
 export ANTHROPIC_API_KEY="your-claude-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # 使用 OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # 使用 OpenRouter
 export OPENROUTER_API_KEY="your-openrouter-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # 使用本地 Ollama
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # 显式指定 Provider
 export AI_PROVIDER="ollama"
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # 实时抓包 + AI 分析
-sudo ./pktanalyzer -i en0 -A
+sudo ./pktanalyzer capture en0 -A
 ```
 
 #### AI 工具能力
@@ -456,24 +448,25 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 
 ## 命令行参数
 
-| 参数             | 说明                                                             |
-| ---------------- | ---------------------------------------------------------------- |
-| `-i <interface>` | 指定抓包的网络接口                                               |
-| `-r <file>`      | 读取 pcap/pcapng 文件                                            |
-| `-f <filter>`    | BPF 过滤表达式（抓包过滤）                                       |
-| `-Y <filter>`    | 显示过滤表达式（类 Wireshark 语法）                              |
-| `-k <keylog>`    | SSLKEYLOGFILE 路径（用于 TLS 解密）                              |
-| `-S`             | 启用 TCP 流重组                                                  |
-| `-A`             | 启用 AI 助手（需设置 API Key）                                   |
-| `-D`             | 列出可用网络接口                                                 |
-| `-G fields`      | 列出可用字段                                                     |
-| `-T <format>`    | 输出格式：text, json, fields                                     |
-| `-w <file>`      | 写入数据包到 pcapng 文件                                         |
-| `-c <count>`     | 限制输出包数量                                                   |
-| `-V`             | 显示详细协议信息                                                 |
-| `-x`             | 显示十六进制 dump                                                |
-| `-e <field>`     | 提取指定字段（配合 `-T fields`）                                 |
-| `-z <stats>`     | 统计选项：endpoints, conv,tcp, io,stat, follow,tcp,ascii, expert |
+pktanalyzer 现在使用子命令结构。
+
+- `read`: 读取并分析 pcap/pcapng 文件
+  - `text`: 以文本格式输出数据包
+  - `json`: 以 JSON 格式输出数据包
+  - `fields`: 提取指定字段
+- `capture`: 实时抓包
+  - `write`: 将捕获的数据包写入文件
+- `stats`: 数据包统计和分析
+  - `endpoints`: 显示端点统计
+  - `conversations`: 显示会话统计
+  - `io`: 显示 I/O 统计
+  - `expert`: 专家分析
+- `follow`: 追踪 TCP 流
+- `list`: 列出可用资源
+  - `interfaces`: 列出网络接口
+  - `fields`: 列出可用数据包字段
+
+使用 `pktanalyzer [command] --help` 查看每个命令的详细用法。
 
 ## TUI 快捷键
 
@@ -568,6 +561,13 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 ```
 pktanalyzer/
 ├── main.go              # 程序入口
+├── cmd/                 # CLI 命令定义 (Cobra)
+│   ├── root.go          # 根命令
+│   ├── capture.go       # 抓包命令
+│   ├── read.go          # 读取命令
+│   ├── stats.go         # 统计命令
+│   ├── follow.go        # 追踪命令
+│   └── list.go          # 列表命令
 ├── capture/
 │   ├── capture.go       # 抓包引擎和协议解析
 │   ├── protocols.go     # 扩展协议解析器
@@ -623,6 +623,7 @@ pktanalyzer/
 
 ## 技术栈
 
+- [cobra](https://github.com/spf13/cobra) - CLI 框架
 - [gopacket](https://github.com/google/gopacket) - 数据包捕获和解析
 - [bubbletea](https://github.com/charmbracelet/bubbletea) - TUI 框架
 - [lipgloss](https://github.com/charmbracelet/lipgloss) - 终端样式

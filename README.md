@@ -11,10 +11,10 @@ A command-line network packet analysis tool written in Go, similar to tshark/Wir
 - **TLS Decryption**: Decrypt HTTPS traffic using `SSLKEYLOGFILE`.
 - **TCP Stream Reassembly**: Track and reassemble TCP sessions to view complete data streams.
 - **Display Filters**: Wireshark-like syntax for display filtering (`-Y`).
-- **CLI Export**: tshark-compatible command-line output (`-T text/json/fields`).
-- **Statistical Analysis**: Endpoint statistics, conversation statistics, I/O statistics (`-z`).
-- **Stream Following**: Export TCP stream data (`-z follow,tcp,ascii`).
-- **Expert Info**: An expert system for TCP/DNS/HTTP anomaly detection, similar to Wireshark Expert Info (`-z expert`).
+- **CLI Export**: tshark-compatible command-line output (`text`, `json`, `fields`).
+- **Statistical Analysis**: Endpoint statistics, conversation statistics, I/O statistics (`stats` command).
+- **Stream Following**: Export TCP stream data (`follow` command).
+- **Expert Info**: An expert system for TCP/DNS/HTTP anomaly detection, similar to Wireshark Expert Info.
 - **AI Analysis**: Integrated with Claude/OpenAI for intelligent interpretation of packets and network behavior.
 - **TUI Interface**: Interactive terminal user interface with support for scrolling, filtering, detailed views, and split screens.
 
@@ -73,6 +73,8 @@ go build -o pktanalyzer
 
 ## Usage
 
+pktanalyzer uses a command-based structure. Use `pktanalyzer --help` to see all available commands.
+
 ### Basic Usage
 
 ```bash
@@ -80,146 +82,136 @@ go build -o pktanalyzer
 ./pktanalyzer --help
 
 # List available network interfaces
-./pktanalyzer -D
+./pktanalyzer list interfaces
 
 # List available fields
-./pktanalyzer -G fields
+./pktanalyzer list fields
 
 # Read pcap file (TUI mode)
-./pktanalyzer -r capture.pcapng
+./pktanalyzer read capture.pcapng
 
 # Real-time capture (requires root privileges)
-sudo ./pktanalyzer -i en0
+sudo ./pktanalyzer capture en0
 
-# Use BPF filter
-./pktanalyzer -r capture.pcapng -f "tcp port 80"
-sudo ./pktanalyzer -i en0 -f "host 192.168.1.1"
+# Use BPF filter (capture filter)
+./pktanalyzer read capture.pcapng --bpf "tcp port 80"
+sudo ./pktanalyzer capture en0 --bpf "host 192.168.1.1"
 ```
 
-### Save Packets (`-w`)
+### Save Packets
 
-Save captured packets to a pcapng file:
+Capture live packets and save them to a pcapng file:
 
 ```bash
 # Real-time capture and save to file
-sudo ./pktanalyzer -i en0 -w capture.pcapng
+sudo ./pktanalyzer capture write en0 capture.pcapng
 
 # Limit the number of packets
-sudo ./pktanalyzer -i en0 -w capture.pcapng -c 100
+sudo ./pktanalyzer capture write en0 capture.pcapng -c 100
 
-# Read file, filter, and save
-./pktanalyzer -r input.pcapng -w filtered.pcapng -Y 'tcp.dstport == 443'
-
-# Extract packets of a specific protocol
-./pktanalyzer -r input.pcapng -w http_only.pcapng -Y 'http'
+# With display filter
+sudo ./pktanalyzer capture write en0 capture.pcapng -Y 'tcp.dstport == 443'
 ```
 
-**TUI Mode Save**: In TUI mode, press `w` to save the current (filtered) packets to a file. The filename is automatically generated in the format `capture_YYYYMMDD_HHMMSS.pcapng`.
+**TUI Mode Save**: In TUI mode (started with `capture` or `read`), press `w` to save the current (filtered) packets to a file. The filename is automatically generated in the format `capture_YYYYMMDD_HHMMSS.pcapng`.
 
 ### CLI Export Mode (tshark compatible)
 
 ```bash
 # Text format output (one-line summary)
-./pktanalyzer -r capture.pcapng -T text -c 10
+./pktanalyzer read text capture.pcapng -c 10
 
 # JSON format output
-./pktanalyzer -r capture.pcapng -T json -c 5
+./pktanalyzer read json capture.pcapng -c 5
 
 # Field extraction
-./pktanalyzer -r capture.pcapng -T fields -e frame.number -e ip.src -e ip.dst -e tcp.dstport
+./pktanalyzer read fields capture.pcapng -e frame.number -e ip.src -e ip.dst -e tcp.dstport
 
 # Detailed output (protocol layer information)
-./pktanalyzer -r capture.pcapng -V -c 1
+./pktanalyzer read text capture.pcapng -V -c 1
 
 # Hex dump
-./pktanalyzer -r capture.pcapng -x -c 1
+./pktanalyzer read text capture.pcapng -x -c 1
 ```
 
-### Display Filters (`-Y`)
+### Display Filters (`-Y` / `--filter`)
 
 Use Wireshark-like syntax to filter packets:
 
 ```bash
 # Basic comparison
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 80' -T text
+./pktanalyzer read text capture.pcapng -Y 'tcp.dstport == 80'
 
 # IP address filtering
-./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1"' -T text
+./pktanalyzer read text capture.pcapng -Y 'ip.src == "192.168.1.1"'
 
 # Logical combination
-./pktanalyzer -r capture.pcapng -Y 'ip.src == "192.168.1.1" and tcp' -T text
-./pktanalyzer -r capture.pcapng -Y 'tcp or udp' -T text
+./pktanalyzer read text capture.pcapng -Y 'ip.src == "192.168.1.1" and tcp'
+./pktanalyzer read text capture.pcapng -Y 'tcp or udp'
 
 # String containment
-./pktanalyzer -r dns.pcapng -Y 'dns.qry.name contains "google"' -T text
+./pktanalyzer read text dns.pcapng -Y 'dns.qry.name contains "google"'
 
 # Protocol filtering
-./pktanalyzer -r capture.pcapng -Y 'dns' -T text
-./pktanalyzer -r capture.pcapng -Y 'http' -T text
+./pktanalyzer read text capture.pcapng -Y 'dns'
+./pktanalyzer read text capture.pcapng -Y 'http'
 
 # Range matching
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport in [80, 443, 8080]' -T text
+./pktanalyzer read text capture.pcapng -Y 'tcp.dstport in [80, 443, 8080]'
 
 # Combine with JSON export
-./pktanalyzer -r capture.pcapng -Y 'tcp.dstport == 443' -T json -c 10
+./pktanalyzer read json capture.pcapng -Y 'tcp.dstport == 443' -c 10
 ```
 
-Supported filter fields:
+Supported filter fields can be listed with `pktanalyzer list fields`.
 
-- `frame.*`: number, len, time_epoch, protocols
-- `eth.*`: src, dst, type
-- `ip.*`: src, dst, proto, addr
-- `tcp.*`: srcport, dstport, port, seq, ack, flags.syn/ack/fin/rst/psh, len, stream
-- `udp.*`: srcport, dstport, port
-- `dns.*`: qry.name, qry.type, flags.response
-- `http.*`: request, response, method, uri, status
-- `tls.*`: handshake, handshake_type, sni
-
-### Statistical Analysis (`-z`)
+### Statistical Analysis (`stats`)
 
 ```bash
 # Endpoint statistics
-./pktanalyzer -r capture.pcapng -z endpoints
+./pktanalyzer stats endpoints -r capture.pcapng
 
 # TCP conversation statistics
-./pktanalyzer -r capture.pcapng -z conv,tcp
+./pktanalyzer stats conversations -r capture.pcapng --proto tcp
 
 # UDP conversation statistics
-./pktanalyzer -r capture.pcapng -z conv,udp
+./pktanalyzer stats conversations -r capture.pcapng --proto udp
 
 # I/O statistics (1-second interval)
-./pktanalyzer -r capture.pcapng -z io,stat,1
+./pktanalyzer stats io -r capture.pcapng --interval 1
 
 # I/O statistics (0.5-second interval)
-./pktanalyzer -r capture.pcapng -z io,stat,0.5
+./pktanalyzer stats io -r capture.pcapng --interval 0.5
 ```
 
-### TCP Stream Following (`-z follow`)
+### TCP Stream Following (`follow`)
+
+First, identify a stream ID using the TUI or analysis tools, then follow it:
 
 ```bash
 # ASCII format export for stream #1
-./pktanalyzer -r capture.pcapng -z follow,tcp,ascii,1
+./pktanalyzer follow 1 -r capture.pcapng --format ascii
 
 # Hex format export
-./pktanalyzer -r capture.pcapng -z follow,tcp,hex,1
+./pktanalyzer follow 1 -r capture.pcapng --format hex
 
 # Raw format (direct byte output)
-./pktanalyzer -r capture.pcapng -z follow,tcp,raw,1 > stream.bin
+./pktanalyzer follow 1 -r capture.pcapng --format raw > stream.bin
 ```
 
-### Expert Info System (`-z expert`)
+### Expert Info System (`stats expert`)
 
 Analyzes anomalies and issues in network packets, similar to Wireshark's Expert Information feature:
 
 ```bash
 # Show all expert info
-./pktanalyzer -r capture.pcapng -z expert
+./pktanalyzer stats expert -r capture.pcapng
 
-# Show warnings and errors only (filter below Note level)
-./pktanalyzer -r capture.pcapng -z expert,warning
+# Show warnings and errors only
+./pktanalyzer stats expert -r capture.pcapng --severity warning
 
 # Show errors only
-./pktanalyzer -r capture.pcapng -z expert,error
+./pktanalyzer stats expert -r capture.pcapng --severity error
 ```
 
 **Detected TCP Anomalies**:
@@ -267,7 +259,7 @@ View complete TCP session data streams in the TUI:
 
 ```bash
 # Read file and enable stream reassembly
-./pktanalyzer -r capture.pcapng -S
+./pktanalyzer read capture.pcapng -S
 
 # Press 's' in TUI to switch to stream list view
 ```
@@ -278,10 +270,10 @@ In TCP stream reassembly mode, pktanalyzer automatically detects and parses HTTP
 
 ```bash
 # Enable stream reassembly to analyze HTTP/2 traffic
-./pktanalyzer -r https_capture.pcapng -S
+./pktanalyzer read https_capture.pcapng -S
 
 # Combine with TLS decryption to analyze encrypted HTTP/2 traffic
-./pktanalyzer -r https_capture.pcapng -S -k ~/sslkeys.log
+./pktanalyzer read https_capture.pcapng -S -k ~/sslkeys.log
 ```
 
 **TUI Steps**:
@@ -340,10 +332,10 @@ export SSLKEYLOGFILE=~/sslkeys.log
 
 ```bash
 # Analyze saved capture file
-./pktanalyzer -r https_capture.pcapng -k ~/sslkeys.log
+./pktanalyzer read https_capture.pcapng -k ~/sslkeys.log
 
 # Real-time capture and decrypt
-sudo ./pktanalyzer -i en0 -k ~/sslkeys.log
+sudo ./pktanalyzer capture en0 -k ~/sslkeys.log
 ```
 
 ### AI Intelligent Analysis
@@ -366,27 +358,27 @@ Use the AI assistant to analyze network packets. Supports multiple LLM providers
 ```bash
 # Use Claude
 export ANTHROPIC_API_KEY="your-claude-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # Use OpenAI
 export OPENAI_API_KEY="your-openai-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # Use OpenRouter
 export OPENROUTER_API_KEY="your-openrouter-api-key"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # Use local Ollama
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # Explicitly specify Provider
 export AI_PROVIDER="ollama"
 export OLLAMA_BASE_URL="http://localhost:11434/v1"
-./pktanalyzer -r capture.pcapng -A
+./pktanalyzer read capture.pcapng -A
 
 # Real-time capture + AI analysis
-sudo ./pktanalyzer -i en0 -A
+sudo ./pktanalyzer capture en0 -A
 ```
 
 #### AI Tool Capabilities
@@ -456,24 +448,25 @@ The AI uses the ReAct pattern with the following default safety policies:
 
 ## Command Line Arguments
 
-| Argument         | Description                                                      |
-| ---------------- | ---------------------------------------------------------------- |
-| `-i <interface>` | Network interface to capture from                                |
-| `-r <file>`      | Read pcap/pcapng file                                            |
-| `-f <filter>`    | BPF filter expression (capture filter)                           |
-| `-Y <filter>`    | Display filter expression (Wireshark-like syntax)                |
-| `-k <keylog>`    | Path to SSLKEYLOGFILE (for TLS decryption)                       |
-| `-S`             | Enable TCP stream reassembly                                     |
-| `-A`             | Enable AI assistant (requires API Key)                           |
-| `-D`             | List available network interfaces                                |
-| `-G fields`      | List available fields                                            |
-| `-T <format>`    | Output format: text, json, fields                                |
-| `-w <file>`      | Write packets to pcapng file                                     |
-| `-c <count>`     | Limit output packet count                                        |
-| `-V`             | Show detailed protocol information                               |
-| `-x`             | Show hex dump                                                    |
-| `-e <field>`     | Extract specific field (with `-T fields`)                        |
-| `-z <stats>`     | Statistics: endpoints, conv,tcp, io,stat, follow,tcp,ascii, expert |
+pktanalyzer now uses a subcommand structure.
+
+- `read`: Read and analyze pcap/pcapng file
+  - `text`: Output packets as text
+  - `json`: Output packets as JSON
+  - `fields`: Extract specific fields
+- `capture`: Live packet capture
+  - `write`: Write captured packets to file
+- `stats`: Packet statistics and analysis
+  - `endpoints`: Show endpoint statistics
+  - `conversations`: Show conversation statistics
+  - `io`: Show I/O statistics
+  - `expert`: Expert analysis
+- `follow`: Follow TCP stream
+- `list`: List available resources
+  - `interfaces`: List network interfaces
+  - `fields`: List available packet fields
+
+Use `pktanalyzer [command] --help` for detailed usage of each command.
 
 ## TUI Shortcuts
 
@@ -509,7 +502,7 @@ The AI uses the ReAct pattern with the following default safety policies:
 ### AI Assistant Shortcuts (requires -A)
 
 | Key     | Function               |
-| ------- | ---------------------- |
+| ----- | ---------------------- |
 | `a`     | Toggle AI chat         |
 | `Tab`   | Switch split view      |
 | `i`     | Enter input mode       |
@@ -568,6 +561,13 @@ Press `x` to view the raw data in hexadecimal and ASCII representation.
 ```
 pktanalyzer/
 ├── main.go              # Program entry point
+├── cmd/                 # CLI command definitions (Cobra)
+│   ├── root.go          # Root command
+│   ├── capture.go       # Capture command
+│   ├── read.go          # Read command
+│   ├── stats.go         # Stats command
+│   ├── follow.go        # Follow command
+│   └── list.go          # List command
 ├── capture/
 │   ├── capture.go       # Capture engine and protocol parsing
 │   ├── protocols.go     # Extended protocol parsers
@@ -623,6 +623,7 @@ pktanalyzer/
 
 ## Tech Stack
 
+- [cobra](https://github.com/spf13/cobra) - CLI framework
 - [gopacket](https://github.com/google/gopacket) - Packet capture and parsing
 - [bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework
 - [lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling

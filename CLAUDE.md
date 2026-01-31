@@ -1,69 +1,50 @@
-# PktAnalyzer (Go module)
+# PktAnalyzer
 
-This `CLAUDE.md` is **high leverage**: it is loaded into every session. Keep it short and universally applicable.
+Go module root: `pktanalyzer/go.mod`. Test captures: `examples/*.pcap*`
 
-`pktanalyzer/` is the **Go module root** (`pktanalyzer/go.mod`). Sample `.pcap/.pcapng` captures are in `examples/` for local testing.
+## What (WHAT)
 
-## How to use this file (HumanLayer-style)
+CLI/TUI packet analyzer (Wireshark-like) on `gopacket/pcap`:
+- Live capture (`-i`) or file (`-r`)
+- BPF filter (`-f`), display filter (`filter/*`)
+- TLS decryption (`-k`), TCP reassembly (`-S`), AI assistant (`-A`)
 
-- **Less instructions is more**: avoid adding task-specific checklists here.
-- Use **progressive disclosure**: keep details in separate docs and only read them when relevant.
-- Prefer **pointers to sources of truth** (file paths / code) over copying snippets.
-- Claude is **not a linter**: use deterministic tools (`gofmt`, `go test`, etc.) instead of manual style policing.
+## Why (WHY)
 
-## Project: what it is (WHY/WHAT)
+Lightweight alternative to Wireshark for CLI workflows, with optional AI-powered analysis.
 
-- A CLI/TUI packet analyzer (Wireshark-like) built on `gopacket/pcap`
-- Inputs: live capture (`-i`) or `pcap/pcapng` file (`-r`)
-- Filters:
-  - capture-time BPF: `-f "tcp port 443"`
-  - display filter: `filter/*` (expr-lang/expr)
-- TLS keylog decryption: `-k <SSLKEYLOGFILE>` (best-effort)
-- TCP stream reassembly: `-S` (`stream/*`)
-- Optional AI assistant: `-A` (`agent/*`)
+## How (HOW)
 
-## Quick commands (HOW)
+```bash
+go build -o pktanalyzer                              # build
+./pktanalyzer -r examples/http_google.pcapng         # run
+go test ./...                                        # test
+gofmt -w .                                           # format
+```
 
-From `pktanalyzer/`:
+## Docs (progressive disclosure)
 
-- Build: `go build -o pktanalyzer`
-- Run a capture: `./pktanalyzer -r examples/http_google.pcapng`
-- Stream reassembly: `./pktanalyzer -r examples/http_google.pcapng -S`
-- AI chat: `ANTHROPIC_API_KEY=... ./pktanalyzer -r examples/http_google.pcapng -A`
+Read only when relevant:
+- `README.md` - user-facing features/flags
+- `ROADMAP.md` - milestones, acceptance criteria
+- `TESTING.md` - test conventions
 
-Deterministic tools:
+## Repo map
 
-- Format: `gofmt -w .`
-- Test: `go test ./...`
+| Path | Purpose |
+|------|---------|
+| `main.go` | CLI flags, wiring |
+| `capture/*` | Packet capture/parsing |
+| `stream/*` | TCP reassembly, HTTP parsing |
+| `tls/*` | TLS parsing, keylog decryption |
+| `ui/*` | BubbleTea TUI |
+| `agent/*` | LLM clients, ReAct loop, tools |
+| `filter/*` | Display filter (expr-lang) |
+| `fields/*` | Field registry |
 
-## Progressive disclosure: docs to consult
+## Constraints
 
-Before implementing, identify which docs are relevant and read only those:
-
-- `README.md`: user-facing features, flags, examples
-- `ROADMAP.md`: milestones + acceptance commands (also includes an **AI Agent minimal-change checklist**)
-- `TESTING.md`: any existing test guidance/conventions
-
-## Repo map (where to change what)
-
-- `main.go`: flags and wiring (capture/stream/tls/agent/ui)
-- `capture/*`: capture loop, packet parsing/heuristics
-- `stream/*`: TCP stream tracking + reassembly; HTTP parsing on reassembled data
-- `tls/*`: TLS parsing + keylog-based decryption
-- `ui/*`: BubbleTea TUI (list/detail/hex/streams/chat)
-- `agent/*`: LLM clients + ReAct loop + tool implementations
-- `fields/*`: field registry
-- `filter/*`: display filter compilation/eval
-
-## Safety & privacy (captures + AI)
-
-- Treat packet data as **sensitive** (tokens/cookies/passwords/internal IPs/hostnames).
-- Never print or persist API keys; only read provider keys from env.
-- Prefer **summaries/aggregations** over raw payloads when sending context to remote LLMs.
-- Any new side-effectful capability (capture/export/write files/network) must require **explicit user confirmation**.
-
-## AI assistant conventions (minimal, enforceable)
-
-- Tools should be **deterministic**, **bounded** (`limit`/size caps), and **side-effect free by default**.
-- Default outputs should avoid raw payload/hex unless the user explicitly asks.
-- When making claims about traffic/anomalies, include **evidence references** (packet numbers / stream IDs) so users can jump to source.
+- Packet data is **sensitive** - no raw payloads to LLMs without summarization
+- API keys from env only - never print/persist
+- Side-effectful actions require **user confirmation**
+- AI tools must be **bounded** (limit/size caps) and **side-effect free by default**

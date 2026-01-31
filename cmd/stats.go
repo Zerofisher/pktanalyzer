@@ -7,6 +7,7 @@ import (
 
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/expert"
+	"github.com/Zerofisher/pktanalyzer/internal/app"
 	"github.com/Zerofisher/pktanalyzer/stats"
 	"github.com/spf13/cobra"
 )
@@ -112,13 +113,10 @@ func setupStatsCapturer() (*capture.Capturer, func(*capture.PacketInfo) bool, er
 		return nil, nil, fmt.Errorf("error opening file: %w", err)
 	}
 
-	var filterFunc func(*capture.PacketInfo) bool
-	if statsDisplayFilter != "" {
-		filterFunc, err = compileDisplayFilter(statsDisplayFilter)
-		if err != nil {
-			capturer.Stop()
-			return nil, nil, fmt.Errorf("error compiling display filter: %w", err)
-		}
+	filterFunc, err := app.CompileDisplayFilter(statsDisplayFilter)
+	if err != nil {
+		capturer.Stop()
+		return nil, nil, fmt.Errorf("error compiling display filter: %w", err)
 	}
 
 	return capturer, filterFunc, nil

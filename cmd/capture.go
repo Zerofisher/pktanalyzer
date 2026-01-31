@@ -3,14 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 
-	"github.com/Zerofisher/pktanalyzer/agent"
-	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/Zerofisher/pktanalyzer/tls"
+	"github.com/Zerofisher/pktanalyzer/internal/app"
 	"github.com/Zerofisher/pktanalyzer/ui"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 	"github.com/spf13/cobra"
 )
 
@@ -76,77 +73,59 @@ func init() {
 }
 
 // setupCaptureLive creates a live capturer with common configuration
-func setupCaptureLive(iface string) (*capture.Capturer, *tls.Decryptor, error) {
-	capturer, err := capture.NewLiveCapturer(iface, captureBPFFilter)
+func setupCaptureLive(iface string) (*capture.Capturer, error) {
+	result, err := app.SetupCapturer(app.CaptureConfig{
+		Source:        iface,
+		IsLive:        true,
+		BPFFilter:     captureBPFFilter,
+		KeylogFile:    captureKeylogFile,
+		EnableStreams: captureEnableStreams,
+	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("error starting capture: %w\nNote: Live capture requires root privileges. Try: sudo %s", err, strings.Join(os.Args, " "))
+		return nil, err
 	}
-
-	// Load TLS key log if specified
-	var tlsDecryptor *tls.Decryptor
-	if captureKeylogFile != "" {
-		keyLog, err := tls.LoadKeyLogFile(captureKeylogFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Failed to load key log file: %v\n", err)
-		} else {
-			tlsDecryptor = tls.NewDecryptor(keyLog)
-			capturer.SetDecryptor(tlsDecryptor)
-		}
-	}
-
-	// Enable stream reassembly if requested
-	if captureEnableStreams {
-		streamMgr := stream.NewStreamManager()
-		capturer.SetStreamManager(streamMgr)
-	}
-
-	return capturer, tlsDecryptor, nil
+	return result.Capturer, nil
 }
 
 // runCapture runs live capture in TUI mode
 func runCapture(cmd *cobra.Command, args []string) error {
 	iface := args[0]
 
-	capturer, tlsDecryptor, err := setupCaptureLive(iface)
+	capturer, err := setupCaptureLive(iface)
 	if err != nil {
 		return err
 	}
 
 	// Print info
 	fmt.Printf("Starting capture on interface %s...\n", iface)
-	if tlsDecryptor != nil {
+	if captureKeylogFile != "" {
 		fmt.Printf("Loaded TLS session keys from %s\n", captureKeylogFile)
 	}
 	if captureEnableStreams {
 		fmt.Println("TCP stream reassembly enabled. Press 's' to view streams.")
 	}
 
+	// Create MemoryStore for live capture
+	store := uiadapter.NewMemoryStore()
+	defer store.Close()
+
 	// Start capture
 	packetChan := capturer.Start()
 
 	// Initialize AI agent if requested
-	var aiAgent *agent.Agent
+	var ai uiadapter.AIAssistant
 	if captureEnableAI {
-		provider := llm.DetectProvider()
-		if provider == "" {
-			fmt.Fprintf(os.Stderr, "Warning: AI enabled but no API key found.\n")
-			fmt.Fprintf(os.Stderr, "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or OLLAMA_BASE_URL.\n")
-		} else {
-			aiAgent, err = agent.NewAgent(provider)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Failed to initialize AI agent: %v\n", err)
-			} else {
-				fmt.Printf("AI assistant enabled (using %s). Press 'a' to chat.\n", provider)
-				aiAgent.SetCapturer(capturer)
-			}
-		}
+		ai = app.SetupAI(app.AIConfig{
+			Capturer:     capturer,
+			PacketReader: store,
+		})
 	}
 
 	// Run TUI (isLive = true)
-	if aiAgent != nil {
-		return ui.RunWithAI(packetChan, capturer, true, aiAgent)
+	if ai != nil {
+		return ui.RunWithAI(store, packetChan, capturer, true, ai)
 	}
-	return ui.Run(packetChan, capturer, true)
+	return ui.Run(store, packetChan, capturer, true)
 }
 
 // runCaptureWrite captures packets and writes to file
@@ -154,7 +133,7 @@ func runCaptureWrite(cmd *cobra.Command, args []string) error {
 	iface := args[0]
 	outputFile := args[1]
 
-	capturer, _, err := setupCaptureLive(iface)
+	capturer, err := setupCaptureLive(iface)
 	if err != nil {
 		return err
 	}
@@ -168,13 +147,10 @@ func runCaptureWrite(cmd *cobra.Command, args []string) error {
 	defer writer.Close()
 
 	// Compile display filter if specified
-	var filterFunc func(*capture.PacketInfo) bool
-	if captureWriteDisplayFilter != "" {
-		filterFunc, err = compileDisplayFilter(captureWriteDisplayFilter)
-		if err != nil {
-			capturer.Stop()
-			return fmt.Errorf("error compiling display filter: %w", err)
-		}
+	filterFunc, err := app.CompileDisplayFilter(captureWriteDisplayFilter)
+	if err != nil {
+		capturer.Stop()
+		return fmt.Errorf("error compiling display filter: %w", err)
 	}
 
 	fmt.Printf("Capturing on %s, writing to %s...\n", iface, outputFile)

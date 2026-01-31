@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
@@ -11,8 +13,12 @@ import (
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openai"
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openrouter"
 	"github.com/Zerofisher/pktanalyzer/agent/react"
+	"github.com/Zerofisher/pktanalyzer/agent/tracing"
 	"github.com/Zerofisher/pktanalyzer/capture"
 )
+
+//go:embed prompts/system.md
+var systemPrompt string
 
 // Agent is the AI agent that can interact with users and execute tools
 type Agent struct {
@@ -25,19 +31,29 @@ type Agent struct {
 
 // NewAgent creates a new AI agent
 func NewAgent(provider llm.Provider) (*Agent, error) {
+	// Initialize tracing (runtime detection of LANGFUSE_* env vars)
+	if err := tracing.Init(context.Background()); err != nil {
+		// Log warning but don't block startup
+		log.Printf("Warning: tracing init failed: %v", err)
+	}
+
 	client, err := NewLLMClient(provider)
 	if err != nil {
 		return nil, err
 	}
+
+	// Wrap client with tracing (noop if not enabled)
+	client = tracing.WrapClient(client)
 
 	toolExecutor := NewToolExecutor()
 
 	// Convert tools to llm.Tool format
 	tools := GetTools()
 
-	// Create ReAct agent
+	// Create ReAct agent with traced tool executor
 	policy := react.DefaultPolicy()
-	reactAgent := react.NewAgent(client, tools, &toolExecutorAdapter{toolExecutor}, policy)
+	executor := tracing.WrapToolExecutor(&toolExecutorAdapter{toolExecutor})
+	reactAgent := react.NewAgent(client, tools, executor, policy)
 
 	// Set system prompt
 	reactAgent.SetSystemPrompt(getSystemPrompt())
@@ -54,14 +70,15 @@ func (a *Agent) SetCapturer(c *capture.Capturer) {
 	a.toolExecutor.SetCapturer(c)
 }
 
-// AddPacket adds a packet to the agent's context
-func (a *Agent) AddPacket(p capture.PacketInfo) {
-	a.toolExecutor.AddPacket(p)
+// SetPacketReader sets the packet data source for the agent.
+// This should be called after creating the agent to provide packet access.
+func (a *Agent) SetPacketReader(reader PacketReader) {
+	a.toolExecutor.SetPacketReader(reader)
 }
 
-// GetPacketCount returns the number of packets captured
+// GetPacketCount returns the number of packets available
 func (a *Agent) GetPacketCount() int {
-	return len(a.toolExecutor.GetPackets())
+	return a.toolExecutor.GetPacketCount()
 }
 
 // Chat sends a message to the AI and returns the response
@@ -142,6 +159,12 @@ func (a *Agent) ClearHistory() {
 // GetProvider returns the LLM provider being used
 func (a *Agent) GetProvider() llm.Provider {
 	return a.reactAgent.Provider()
+}
+
+// Close gracefully shuts down the agent, flushing any pending traces.
+// Should be called before application exit.
+func (a *Agent) Close() error {
+	return tracing.Shutdown(context.Background())
 }
 
 // --- Authorization methods for TUI interaction ---
@@ -230,54 +253,8 @@ func (a *toolExecutorAdapter) Execute(ctx context.Context, name string, args map
 	return a.executor.ExecuteTool(name, args)
 }
 
-// getSystemPrompt returns the system prompt for the agent with P0-4 rules
+// getSystemPrompt returns the system prompt for the agent.
+// The prompt is loaded from agent/prompts/system.md via go:embed.
 func getSystemPrompt() string {
-	return `你是一个网络数据包分析专家 AI 助手，集成在 pktanalyzer 工具中。
-
-## 你的能力
-1. 帮助用户抓取和分析网络数据包
-2. 解释各种网络协议（TCP、UDP、HTTP、DNS、TLS等）
-3. 识别网络问题和潜在安全威胁
-4. 提供流量统计和摘要
-5. 回答网络相关的技术问题
-
-## 可用工具
-- get_packets: 获取已捕获的数据包
-- filter_packets: 按条件过滤数据包
-- analyze_packet: 分析特定数据包（默认不含原始数据）
-- get_statistics: 获取流量统计（优先使用）
-- explain_protocol: 解释协议概念
-- find_connections: 查找TCP连接
-- find_dns_queries: 查找DNS查询
-- find_http_requests: 查找HTTP请求
-- detect_anomalies: 检测异常模式
-
-## 工作规则（必须遵守）
-
-### 1. 先统计后下钻
-- 收到分析请求时，**必须先调用 get_statistics** 了解整体流量情况
-- 根据统计结果决定是否需要进一步使用 filter_packets 或 find_* 工具
-- 避免一开始就获取大量原始数据
-
-### 2. 默认不查看原始数据
-- **除非用户明确要求**（使用"原始"、"hex"、"raw"、"十六进制"等关键词），否则不得请求 analyze_packet 的 include_raw=true
-- 原始数据可能包含敏感信息（密码、Token、Cookie等）
-
-### 3. 每条结论必须带证据
-- 所有分析结论**必须引用具体的包编号**或连接信息
-- 格式示例：「检测到 TCP 重传（见包 #12, #18, #33）」
-- 工具返回中包含 Evidence 字段，请在回答中引用
-
-### 4. 高效使用工具
-- 不要在单轮对话中调用过多工具
-- 每次工具调用都有限额限制（limit 最大 50）
-- 如果需要更多数据，提示用户缩小范围或添加过滤条件
-
-### 5. 回答风格
-- 分析数据包时，提供清晰易懂的解释
-- 发现异常时主动提醒用户
-- 用中文回复用户（除非用户使用英文）
-- 回答要简洁专业
-
-当前环境：macOS，使用 libpcap 进行数据包捕获。抓包需要 root 权限。`
+	return systemPrompt
 }

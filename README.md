@@ -98,6 +98,28 @@ sudo ./pktanalyzer capture en0
 sudo ./pktanalyzer capture en0 --bpf "host 192.168.1.1"
 ```
 
+### Indexed Mode (Large Files)
+
+For large pcap files, use indexed mode (`-I`) which creates a SQLite database for efficient querying:
+
+```bash
+# Enable indexed mode
+./pktanalyzer read capture.pcapng -I
+
+# First run creates index (~capture.pktindex), subsequent runs use cached index
+./pktanalyzer read large_capture.pcapng -I
+
+# Combine with AI analysis
+./pktanalyzer read capture.pcapng -I -A
+```
+
+**Benefits of indexed mode**:
+- Memory-efficient: loads packets on-demand instead of loading all into memory
+- Fast random access: quickly jump to any packet by number
+- Flow tracking: automatic flow detection and statistics
+- Expert events: persistent storage of detected anomalies
+- Suitable for multi-GB capture files
+
 ### Save Packets
 
 Capture live packets and save them to a pcapng file:
@@ -252,6 +274,40 @@ Analyzes anomalies and issues in network packets, similar to Wireshark's Expert 
 | HTTP Redirect            | Note     | Redirect (300-399)              |
 | HTTP Slow Response       | Warning  | Slow Response (> 3 seconds)     |
 | HTTP Request No Response | Warning  | Request No Response             |
+
+### Generate Analysis Report (`report`)
+
+Generate a comprehensive Markdown analysis report from a pcap file:
+
+```bash
+# Generate report to stdout
+./pktanalyzer report capture.pcapng
+
+# Save report to file
+./pktanalyzer report capture.pcapng -o report.md
+
+# The report includes:
+# - Overview (packets, bytes, duration, flows)
+# - Protocol distribution
+# - Top flows by bytes
+# - Top talkers
+# - Expert events summary
+```
+
+**Sample report output**:
+```markdown
+# Network Analysis Report
+**Generated:** 2025-01-28 10:30:00
+**File:** capture.pcapng
+
+## Overview
+| Metric | Value |
+|--------|-------|
+| Total Packets | 15234 |
+| Total Bytes | 12.5 MB |
+| Duration | 5m30s |
+...
+```
 
 ### TCP Stream Reassembly (TUI)
 
@@ -446,6 +502,47 @@ The AI uses the ReAct pattern with the following default safety policies:
 | ToolTimeout     | 30s     | Timeout for single tool execution           |
 | ContinueOnError | true    | Continue execution if a tool fails          |
 
+#### AI Observability with Langfuse
+
+pktanalyzer supports [Langfuse](https://langfuse.com) for LLM observability, allowing you to monitor AI agent behavior, token usage, and tool calls.
+
+**Setup:**
+
+1. Create a Langfuse account at [langfuse.com](https://langfuse.com) or self-host
+2. Get your API keys from Settings → API Keys
+3. Set environment variables:
+
+```bash
+# Required - enables tracing automatically
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+
+# Optional - for US region or self-hosted
+export LANGFUSE_HOST="us.cloud.langfuse.com"  # US region
+# export LANGFUSE_HOST="localhost:3000"       # Self-hosted
+```
+
+**Usage:**
+
+```bash
+# Tracing is automatically enabled when LANGFUSE_* env vars are set
+export LANGFUSE_PUBLIC_KEY="pk-lf-xxx"
+export LANGFUSE_SECRET_KEY="sk-lf-xxx"
+./pktanalyzer read capture.pcapng -A
+
+# Traces will appear in Langfuse console
+```
+
+**What's Traced:**
+
+| Span Type         | Attributes                                           |
+| ----------------- | ---------------------------------------------------- |
+| `agent.chat`      | User input, final output, iterations, tool calls     |
+| `llm.chat_stream` | Model, provider, input/output preview, token usage   |
+| `tool.<name>`     | Tool name, input parameters, output preview          |
+
+**Note:** When LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are not set, tracing is disabled (noop) with zero overhead.
+
 ## Command Line Arguments
 
 pktanalyzer now uses a subcommand structure.
@@ -454,6 +551,7 @@ pktanalyzer now uses a subcommand structure.
   - `text`: Output packets as text
   - `json`: Output packets as JSON
   - `fields`: Extract specific fields
+  - `-I, --index`: Use indexed mode for large files
 - `capture`: Live packet capture
   - `write`: Write captured packets to file
 - `stats`: Packet statistics and analysis
@@ -461,6 +559,7 @@ pktanalyzer now uses a subcommand structure.
   - `conversations`: Show conversation statistics
   - `io`: Show I/O statistics
   - `expert`: Expert analysis
+- `report`: Generate analysis report from pcap file
 - `follow`: Follow TCP stream
 - `list`: List available resources
   - `interfaces`: List network interfaces
@@ -566,8 +665,24 @@ pktanalyzer/
 │   ├── capture.go       # Capture command
 │   ├── read.go          # Read command
 │   ├── stats.go         # Stats command
+│   ├── report.go        # Report command
 │   ├── follow.go        # Follow command
 │   └── list.go          # List command
+├── internal/            # Internal packages (not for external use)
+│   ├── app/             # Application setup logic
+│   │   ├── capture.go   # Capturer setup
+│   │   ├── export.go    # Export runner
+│   │   └── ai.go        # AI agent setup
+│   └── report/          # Report generation
+│       ├── report.go    # Report data collection
+│       ├── markdown.go  # Markdown formatter
+│       └── format.go    # Formatting utilities
+├── pkg/                 # Public packages for indexed mode
+│   ├── ingest/          # Pcap file indexing
+│   ├── store/           # SQLite storage backend
+│   │   └── sqlite/      # SQLite implementation
+│   ├── query/           # Query engine for indexed data
+│   └── model/           # Data models (Flow, ExpertEvent, etc.)
 ├── capture/
 │   ├── capture.go       # Capture engine and protocol parsing
 │   ├── protocols.go     # Extended protocol parsers
@@ -616,7 +731,10 @@ pktanalyzer/
 │   ├── app.go           # TUI main program
 │   ├── model.go         # Data model
 │   ├── views.go         # View rendering (including HTTP/2 display)
-│   └── styles.go        # Style definitions
+│   ├── styles.go        # Style definitions
+│   └── adapter/         # UI adapters for different data sources
+│       ├── memory_store.go   # In-memory packet store (live capture)
+│       └── indexed_store.go  # SQLite-backed store (indexed mode)
 ├── go.mod
 └── go.sum
 ```
@@ -649,6 +767,9 @@ pktanalyzer/
 | `OPENAI_BASE_URL`    | OpenAI API URL (default `https://api.openai.com/v1`, for compatible APIs) |
 | `OPENROUTER_API_KEY` | OpenRouter API Key                                                  |
 | `OLLAMA_BASE_URL`    | Ollama API URL (default `http://localhost:11434/v1`)                |
+| `LANGFUSE_PUBLIC_KEY`| Langfuse public key (enables AI tracing when set)                   |
+| `LANGFUSE_SECRET_KEY`| Langfuse secret key (required with public key)                      |
+| `LANGFUSE_HOST`      | Langfuse host (default `cloud.langfuse.com`, use `us.cloud.langfuse.com` for US) |
 | `SSLKEYLOGFILE`      | TLS key log file path                                               |
 
 ## License

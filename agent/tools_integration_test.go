@@ -9,12 +9,12 @@ import (
 
 // TestGetStatisticsFirst tests that get_statistics provides good overview
 func TestGetStatisticsFirst(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 
 	// Add diverse packets
 	protocols := []string{"TCP", "TCP", "TCP", "DNS", "DNS", "HTTP", "HTTP", "ARP"}
 	for i, proto := range protocols {
-		exec.AddPacket(capture.PacketInfo{
+		mock.AddPacket(capture.PacketInfo{
 			Number:   i + 1,
 			Protocol: proto,
 			SrcIP:    "192.168.1.100",
@@ -42,11 +42,11 @@ func TestGetStatisticsFirst(t *testing.T) {
 
 // TestLimitEnforcement tests that limit is properly clamped
 func TestLimitEnforcement(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 
 	// Add 100 packets
 	for i := 0; i < 100; i++ {
-		exec.AddPacket(capture.PacketInfo{
+		mock.AddPacket(capture.PacketInfo{
 			Number:   i + 1,
 			Protocol: "TCP",
 			SrcIP:    "192.168.1.100",
@@ -80,11 +80,11 @@ func TestLimitEnforcement(t *testing.T) {
 
 // TestEvidenceInOutput tests that Evidence is included in tool outputs
 func TestEvidenceInOutput(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 
 	// Add DNS packets
-	exec.AddPacket(capture.PacketInfo{Number: 1, Protocol: "DNS", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", Info: "Query A google.com"})
-	exec.AddPacket(capture.PacketInfo{Number: 2, Protocol: "DNS", SrcIP: "8.8.8.8", DstIP: "192.168.1.100", Info: "Response A google.com"})
+	mock.AddPacket(capture.PacketInfo{Number: 1, Protocol: "DNS", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", Info: "Query A google.com"})
+	mock.AddPacket(capture.PacketInfo{Number: 2, Protocol: "DNS", SrcIP: "8.8.8.8", DstIP: "192.168.1.100", Info: "Response A google.com"})
 
 	result, err := exec.ExecuteTool("find_dns_queries", map[string]interface{}{})
 	if err != nil {
@@ -101,8 +101,8 @@ func TestEvidenceInOutput(t *testing.T) {
 
 // TestRawDataAuthorizationDenied tests that raw data triggers confirmation request without authorization
 func TestRawDataAuthorizationDenied(t *testing.T) {
-	exec := NewToolExecutor()
-	exec.AddPacket(capture.PacketInfo{
+	exec, mock := NewToolExecutorWithMock()
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "TCP",
 		SrcIP:    "192.168.1.100",
@@ -143,8 +143,8 @@ func TestRawDataAuthorizationDenied(t *testing.T) {
 
 // TestRawDataAuthorizationGranted tests that raw data is shown with session authorization
 func TestRawDataAuthorizationGranted(t *testing.T) {
-	exec := NewToolExecutor()
-	exec.AddPacket(capture.PacketInfo{
+	exec, mock := NewToolExecutorWithMock()
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "TCP",
 		SrcIP:    "192.168.1.100",
@@ -175,8 +175,8 @@ func TestRawDataAuthorizationGranted(t *testing.T) {
 
 // TestRawDataAfterSessionGrant tests that raw data is shown after session grant
 func TestRawDataAfterSessionGrant(t *testing.T) {
-	exec := NewToolExecutor()
-	exec.AddPacket(capture.PacketInfo{
+	exec, mock := NewToolExecutorWithMock()
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "TCP",
 		SrcIP:    "192.168.1.100",
@@ -223,10 +223,10 @@ func TestRawDataAfterSessionGrant(t *testing.T) {
 
 // TestRedactionEnabled tests that IP redaction works when enabled
 func TestRedactionEnabled(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 	exec.SetRedactConfig(DefaultRedactConfig()) // Redaction enabled by default
 
-	exec.AddPacket(capture.PacketInfo{
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "TCP",
 		SrcIP:    "8.8.8.8", // Public IP should be fully redacted
@@ -251,10 +251,10 @@ func TestRedactionEnabled(t *testing.T) {
 
 // TestRedactionDisabled tests that IPs are shown when redaction is disabled
 func TestRedactionDisabled(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 	exec.SetRedactConfig(&RedactConfig{Enabled: false})
 
-	exec.AddPacket(capture.PacketInfo{
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "TCP",
 		SrcIP:    "8.8.8.8",
@@ -275,7 +275,7 @@ func TestRedactionDisabled(t *testing.T) {
 
 // TestAllowlistRejectsUnknownTool tests that unknown tools are rejected
 func TestAllowlistRejectsUnknownTool(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, _ := NewToolExecutorWithMock()
 
 	_, err := exec.ExecuteTool("malicious_tool", map[string]interface{}{})
 	if err == nil {
@@ -288,12 +288,12 @@ func TestAllowlistRejectsUnknownTool(t *testing.T) {
 
 // TestDetectAnomaliesWithEvidence tests that anomaly detection includes evidence
 func TestDetectAnomaliesWithEvidence(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 
 	// Add packets that simulate port scanning (many SYN to different ports)
 	srcIP := "10.0.0.1"
 	for i := 0; i < 15; i++ {
-		exec.AddPacket(capture.PacketInfo{
+		mock.AddPacket(capture.PacketInfo{
 			Number:   i + 1,
 			Protocol: "TCP",
 			SrcIP:    srcIP,
@@ -320,8 +320,8 @@ func TestDetectAnomaliesWithEvidence(t *testing.T) {
 
 // TestStringParameterClamping tests that long strings are truncated
 func TestStringParameterClamping(t *testing.T) {
-	exec := NewToolExecutor()
-	exec.AddPacket(capture.PacketInfo{
+	exec, mock := NewToolExecutorWithMock()
+	mock.AddPacket(capture.PacketInfo{
 		Number:   1,
 		Protocol: "HTTP",
 		SrcIP:    "192.168.1.100",
@@ -343,12 +343,12 @@ func TestStringParameterClamping(t *testing.T) {
 
 // TestFindConnectionsWithEvidence tests connection finding with evidence
 func TestFindConnectionsWithEvidence(t *testing.T) {
-	exec := NewToolExecutor()
+	exec, mock := NewToolExecutorWithMock()
 
 	// Add TCP connection packets
-	exec.AddPacket(capture.PacketInfo{Number: 1, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", SrcPort: "54321", DstPort: "443", Info: "[SYN]"})
-	exec.AddPacket(capture.PacketInfo{Number: 2, Protocol: "TCP", SrcIP: "8.8.8.8", DstIP: "192.168.1.100", SrcPort: "443", DstPort: "54321", Info: "[SYN, ACK]"})
-	exec.AddPacket(capture.PacketInfo{Number: 3, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", SrcPort: "54321", DstPort: "443", Info: "[ACK]"})
+	mock.AddPacket(capture.PacketInfo{Number: 1, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", SrcPort: "54321", DstPort: "443", Info: "[SYN]"})
+	mock.AddPacket(capture.PacketInfo{Number: 2, Protocol: "TCP", SrcIP: "8.8.8.8", DstIP: "192.168.1.100", SrcPort: "443", DstPort: "54321", Info: "[SYN, ACK]"})
+	mock.AddPacket(capture.PacketInfo{Number: 3, Protocol: "TCP", SrcIP: "192.168.1.100", DstIP: "8.8.8.8", SrcPort: "54321", DstPort: "443", Info: "[ACK]"})
 
 	result, err := exec.ExecuteTool("find_connections", map[string]interface{}{})
 	if err != nil {

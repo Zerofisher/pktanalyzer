@@ -98,6 +98,28 @@ sudo ./pktanalyzer capture en0
 sudo ./pktanalyzer capture en0 --bpf "host 192.168.1.1"
 ```
 
+### 索引模式（大文件支持）
+
+对于大型 pcap 文件，使用索引模式 (`-I`) 会创建 SQLite 数据库以实现高效查询：
+
+```bash
+# 启用索引模式
+./pktanalyzer read capture.pcapng -I
+
+# 首次运行会创建索引文件（~capture.pktindex），后续运行使用缓存的索引
+./pktanalyzer read large_capture.pcapng -I
+
+# 配合 AI 分析
+./pktanalyzer read capture.pcapng -I -A
+```
+
+**索引模式的优势**：
+- 内存高效：按需加载数据包，而不是将所有数据加载到内存
+- 快速随机访问：可以快速跳转到任意编号的数据包
+- 流跟踪：自动检测和统计网络流
+- 专家事件：持久存储检测到的异常
+- 适合处理数 GB 的抓包文件
+
 ### 保存数据包
 
 实时抓包并保存到 pcapng 文件：
@@ -252,6 +274,40 @@ sudo ./pktanalyzer capture write en0 capture.pcapng -Y 'tcp.dstport == 443'
 | HTTP Redirect            | Note     | 重定向（300-399）     |
 | HTTP Slow Response       | Warning  | 响应缓慢（> 3 秒）    |
 | HTTP Request No Response | Warning  | 请求无响应            |
+
+### 生成分析报告 (`report`)
+
+从 pcap 文件生成完整的 Markdown 分析报告：
+
+```bash
+# 生成报告输出到标准输出
+./pktanalyzer report capture.pcapng
+
+# 保存报告到文件
+./pktanalyzer report capture.pcapng -o report.md
+
+# 报告包含：
+# - 概览（数据包数、字节数、持续时间、流数量）
+# - 协议分布
+# - 流量最大的流
+# - 最活跃的 IP
+# - 专家事件摘要
+```
+
+**报告输出示例**：
+```markdown
+# Network Analysis Report
+**Generated:** 2025-01-28 10:30:00
+**File:** capture.pcapng
+
+## Overview
+| Metric | Value |
+|--------|-------|
+| Total Packets | 15234 |
+| Total Bytes | 12.5 MB |
+| Duration | 5m30s |
+...
+```
 
 ### TCP 流重组 (TUI)
 
@@ -446,6 +502,47 @@ AI 使用 ReAct 模式运行，内置以下安全策略：
 | ToolTimeout     | 30s    | 单个工具执行超时         |
 | ContinueOnError | true   | 工具出错时继续执行       |
 
+#### AI 可观测性 (Langfuse)
+
+pktanalyzer 支持 [Langfuse](https://langfuse.com) 进行 LLM 可观测性监控，可追踪 AI Agent 行为、Token 使用量和工具调用。
+
+**配置步骤：**
+
+1. 在 [langfuse.com](https://langfuse.com) 注册账号（或自托管）
+2. 在 Settings → API Keys 获取密钥
+3. 设置环境变量：
+
+```bash
+# 必填 - 设置后自动开启追踪
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+
+# 可选 - US 区域或自托管
+export LANGFUSE_HOST="us.cloud.langfuse.com"  # US 区域
+# export LANGFUSE_HOST="localhost:3000"       # 自托管
+```
+
+**使用方式：**
+
+```bash
+# 设置 LANGFUSE_* 环境变量后自动开启追踪
+export LANGFUSE_PUBLIC_KEY="pk-lf-xxx"
+export LANGFUSE_SECRET_KEY="sk-lf-xxx"
+./pktanalyzer read capture.pcapng -A
+
+# Trace 数据将显示在 Langfuse 控制台
+```
+
+**追踪内容：**
+
+| Span 类型         | 属性                                           |
+| ----------------- | ---------------------------------------------- |
+| `agent.chat`      | 用户输入、最终输出、迭代次数、工具调用数       |
+| `llm.chat_stream` | 模型、提供商、输入/输出预览、Token 使用量      |
+| `tool.<name>`     | 工具名称、输入参数、输出预览                   |
+
+**注意：** 未设置 LANGFUSE_PUBLIC_KEY 和 LANGFUSE_SECRET_KEY 时，追踪功能禁用（noop），无额外开销。
+
 ## 命令行参数
 
 pktanalyzer 现在使用子命令结构。
@@ -454,6 +551,7 @@ pktanalyzer 现在使用子命令结构。
   - `text`: 以文本格式输出数据包
   - `json`: 以 JSON 格式输出数据包
   - `fields`: 提取指定字段
+  - `-I, --index`: 使用索引模式处理大文件
 - `capture`: 实时抓包
   - `write`: 将捕获的数据包写入文件
 - `stats`: 数据包统计和分析
@@ -461,6 +559,7 @@ pktanalyzer 现在使用子命令结构。
   - `conversations`: 显示会话统计
   - `io`: 显示 I/O 统计
   - `expert`: 专家分析
+- `report`: 从 pcap 文件生成分析报告
 - `follow`: 追踪 TCP 流
 - `list`: 列出可用资源
   - `interfaces`: 列出网络接口
@@ -566,8 +665,24 @@ pktanalyzer/
 │   ├── capture.go       # 抓包命令
 │   ├── read.go          # 读取命令
 │   ├── stats.go         # 统计命令
+│   ├── report.go        # 报告命令
 │   ├── follow.go        # 追踪命令
 │   └── list.go          # 列表命令
+├── internal/            # 内部包（不对外暴露）
+│   ├── app/             # 应用程序初始化逻辑
+│   │   ├── capture.go   # 抓包器设置
+│   │   ├── export.go    # 导出执行器
+│   │   └── ai.go        # AI 助手设置
+│   └── report/          # 报告生成
+│       ├── report.go    # 报告数据收集
+│       ├── markdown.go  # Markdown 格式化
+│       └── format.go    # 格式化工具
+├── pkg/                 # 公共包（索引模式）
+│   ├── ingest/          # Pcap 文件索引
+│   ├── store/           # SQLite 存储后端
+│   │   └── sqlite/      # SQLite 实现
+│   ├── query/           # 索引数据查询引擎
+│   └── model/           # 数据模型 (Flow, ExpertEvent 等)
 ├── capture/
 │   ├── capture.go       # 抓包引擎和协议解析
 │   ├── protocols.go     # 扩展协议解析器
@@ -616,7 +731,10 @@ pktanalyzer/
 │   ├── app.go           # TUI 主程序
 │   ├── model.go         # 数据模型
 │   ├── views.go         # 视图渲染 (含 HTTP/2 显示)
-│   └── styles.go        # 样式定义
+│   ├── styles.go        # 样式定义
+│   └── adapter/         # UI 适配器（不同数据源）
+│       ├── memory_store.go   # 内存数据包存储（实时抓包）
+│       └── indexed_store.go  # SQLite 存储（索引模式）
 ├── go.mod
 └── go.sum
 ```
@@ -649,6 +767,9 @@ pktanalyzer/
 | `OPENAI_BASE_URL`    | OpenAI API 地址（默认 `https://api.openai.com/v1`，可用于兼容 API） |
 | `OPENROUTER_API_KEY` | OpenRouter API 密钥                                                 |
 | `OLLAMA_BASE_URL`    | Ollama API 地址（默认 `http://localhost:11434/v1`）                 |
+| `LANGFUSE_PUBLIC_KEY`| Langfuse 公钥（设置后自动开启 AI 追踪）                             |
+| `LANGFUSE_SECRET_KEY`| Langfuse 私钥（需与公钥一起设置）                                   |
+| `LANGFUSE_HOST`      | Langfuse 主机（默认 `cloud.langfuse.com`，US 区域用 `us.cloud.langfuse.com`） |
 | `SSLKEYLOGFILE`      | TLS 密钥日志文件路径                                                |
 
 ## License

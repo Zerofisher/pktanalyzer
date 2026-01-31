@@ -115,13 +115,18 @@ func (e *Exporter) exportText(pkt *capture.PacketInfo) error {
 	// Format: No. Time Source Destination Protocol Length Info
 	timeStr := pkt.Timestamp.Format("15:04:05.000000")
 
+	// Use IP address if available, otherwise fall back to MAC address
 	src := pkt.SrcIP
-	if pkt.SrcPort != "" {
+	if src == "" {
+		src = formatMAC(pkt.SrcMAC)
+	} else if pkt.SrcPort != "" {
 		src = fmt.Sprintf("%s:%s", pkt.SrcIP, pkt.SrcPort)
 	}
 
 	dst := pkt.DstIP
-	if pkt.DstPort != "" {
+	if dst == "" {
+		dst = formatMAC(pkt.DstMAC)
+	} else if pkt.DstPort != "" {
 		dst = fmt.Sprintf("%s:%s", pkt.DstIP, pkt.DstPort)
 	}
 
@@ -348,4 +353,23 @@ func parsePort(s string) uint16 {
 	var port uint16
 	fmt.Sscanf(s, "%d", &port)
 	return port
+}
+
+// formatMAC formats a MAC address string for display
+// Returns a shortened version (vendor_suffix) like Wireshark does
+func formatMAC(mac string) string {
+	if mac == "" {
+		return ""
+	}
+	// For broadcast/multicast, keep as is
+	if mac == "ff:ff:ff:ff:ff:ff" {
+		return "Broadcast"
+	}
+	// Return shortened format: last 3 octets with vendor prefix hint
+	parts := strings.Split(mac, ":")
+	if len(parts) == 6 {
+		// Format like: Vendor_xx:xx:xx (using first 3 octets as vendor, last 3 as identifier)
+		return fmt.Sprintf("%s_%s:%s:%s", parts[0]+parts[1]+parts[2], parts[3], parts[4], parts[5])
+	}
+	return mac
 }

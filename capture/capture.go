@@ -187,6 +187,174 @@ func (c *Capturer) parsePacket(packet gopacket.Packet) PacketInfo {
 		})
 	}
 
+	// Parse 802.11 (WiFi)
+	if dot11Layer := packet.Layer(layers.LayerTypeDot11); dot11Layer != nil {
+		dot11 := dot11Layer.(*layers.Dot11)
+
+		// Extract addresses based on frame type
+		// Address1 is usually receiver, Address2 is transmitter
+		info.DstMAC = dot11.Address1.String()
+		info.SrcMAC = dot11.Address2.String()
+
+		// Determine frame type
+		frameType := dot11.Type.String()
+		info.Protocol = "802.11"
+
+		details := []string{
+			fmt.Sprintf("Type/Subtype: %s", frameType),
+			fmt.Sprintf("Receiver: %s", dot11.Address1),
+			fmt.Sprintf("Transmitter: %s", dot11.Address2),
+		}
+		if dot11.Address3 != nil {
+			details = append(details, fmt.Sprintf("BSSID/Address3: %s", dot11.Address3))
+		}
+		if dot11.Address4 != nil {
+			details = append(details, fmt.Sprintf("Address4: %s", dot11.Address4))
+		}
+		details = append(details,
+			fmt.Sprintf("Fragment: %d", dot11.FragmentNumber),
+			fmt.Sprintf("Sequence: %d", dot11.SequenceNumber),
+		)
+
+		info.Layers = append(info.Layers, LayerInfo{
+			Name:    "IEEE 802.11",
+			Details: details,
+		})
+
+		// Build info string based on frame type
+		info.Info = fmt.Sprintf("%s, SN=%d, FN=%d", frameType, dot11.SequenceNumber, dot11.FragmentNumber)
+	}
+
+	// Parse RadioTap header (often present in WiFi captures)
+	if radioLayer := packet.Layer(layers.LayerTypeRadioTap); radioLayer != nil {
+		radio := radioLayer.(*layers.RadioTap)
+
+		details := []string{
+			fmt.Sprintf("Length: %d", radio.Length),
+		}
+		if radio.Present.TSFT() {
+			details = append(details, fmt.Sprintf("TSFT: %d", radio.TSFT))
+		}
+		if radio.Present.Rate() {
+			details = append(details, fmt.Sprintf("Rate: %.1f Mbps", float64(radio.Rate)*0.5))
+		}
+		if radio.Present.Channel() {
+			details = append(details, fmt.Sprintf("Channel: %d MHz", radio.ChannelFrequency))
+		}
+		if radio.Present.DBMAntennaSignal() {
+			details = append(details, fmt.Sprintf("Signal: %d dBm", radio.DBMAntennaSignal))
+		}
+
+		info.Layers = append(info.Layers, LayerInfo{
+			Name:    "RadioTap",
+			Details: details,
+		})
+	}
+
+	// Parse 802.11 specific frame types for better info
+	// Management frames
+	if beaconLayer := packet.Layer(layers.LayerTypeDot11MgmtBeacon); beaconLayer != nil {
+		beacon := beaconLayer.(*layers.Dot11MgmtBeacon)
+		info.Info = fmt.Sprintf("Beacon frame, BI=%d", beacon.Interval)
+		// Check for SSID in information elements (parsed as separate layers)
+		for _, layer := range packet.Layers() {
+			if ie, ok := layer.(*layers.Dot11InformationElement); ok {
+				if ie.ID == 0 && len(ie.Info) > 0 { // SSID
+					info.Info = fmt.Sprintf("Beacon frame, SSID=%s", string(ie.Info))
+					break
+				}
+			}
+		}
+	}
+	if probeReqLayer := packet.Layer(layers.LayerTypeDot11MgmtProbeReq); probeReqLayer != nil {
+		info.Info = "Probe Request"
+		// First try to find SSID in IE layers
+		foundSSID := false
+		for _, layer := range packet.Layers() {
+			if ie, ok := layer.(*layers.Dot11InformationElement); ok {
+				if ie.ID == 0 && len(ie.Info) > 0 { // SSID
+					info.Info = fmt.Sprintf("Probe Request, SSID=%s", string(ie.Info))
+					foundSSID = true
+					break
+				}
+			}
+		}
+		// If not found in layers, manually parse from Contents
+		if !foundSSID {
+			if ssid := extractSSIDFromIE(probeReqLayer.(*layers.Dot11MgmtProbeReq).Contents); ssid != "" {
+				info.Info = fmt.Sprintf("Probe Request, SSID=%s", ssid)
+			}
+		}
+	}
+	if probeRespLayer := packet.Layer(layers.LayerTypeDot11MgmtProbeResp); probeRespLayer != nil {
+		info.Info = "Probe Response"
+		// First try to find SSID in IE layers
+		foundSSID := false
+		for _, layer := range packet.Layers() {
+			if ie, ok := layer.(*layers.Dot11InformationElement); ok {
+				if ie.ID == 0 && len(ie.Info) > 0 { // SSID
+					info.Info = fmt.Sprintf("Probe Response, SSID=%s", string(ie.Info))
+					foundSSID = true
+					break
+				}
+			}
+		}
+		// If not found in layers, manually parse from Contents
+		if !foundSSID {
+			if ssid := extractSSIDFromIE(probeRespLayer.(*layers.Dot11MgmtProbeResp).Contents); ssid != "" {
+				info.Info = fmt.Sprintf("Probe Response, SSID=%s", ssid)
+			}
+		}
+	}
+	if packet.Layer(layers.LayerTypeDot11MgmtAuthentication) != nil {
+		info.Info = "Authentication"
+	}
+	if packet.Layer(layers.LayerTypeDot11MgmtDeauthentication) != nil {
+		info.Info = "Deauthentication"
+	}
+	if packet.Layer(layers.LayerTypeDot11MgmtAssociationReq) != nil {
+		info.Info = "Association Request"
+	}
+	if packet.Layer(layers.LayerTypeDot11MgmtAssociationResp) != nil {
+		info.Info = "Association Response"
+	}
+	if packet.Layer(layers.LayerTypeDot11MgmtDisassociation) != nil {
+		info.Info = "Disassociation"
+	}
+
+	// Data frames - check for EAPOL (WPA authentication)
+	if eapolLayer := packet.Layer(layers.LayerTypeEAPOL); eapolLayer != nil {
+		eapol := eapolLayer.(*layers.EAPOL)
+		info.Protocol = "EAPOL"
+		info.Info = fmt.Sprintf("EAPOL, Type=%d, Len=%d", eapol.Type, eapol.Length)
+	}
+	if eapolKeyLayer := packet.Layer(layers.LayerTypeEAPOLKey); eapolKeyLayer != nil {
+		eapolKey := eapolKeyLayer.(*layers.EAPOLKey)
+		info.Protocol = "EAPOL"
+		// Determine key message number based on flags
+		// Message 1: KeyACK=1, KeyMIC=0 (AP -> STA, ANonce)
+		// Message 2: KeyACK=0, KeyMIC=1, KeyDataLength>0 (STA -> AP, SNonce + MIC)
+		// Message 3: KeyACK=1, KeyMIC=1 (AP -> STA, Install + encrypted GTK)
+		// Message 4: KeyACK=0, KeyMIC=1, KeyDataLength=0 (STA -> AP, just MIC)
+		msgNum := 0
+		if eapolKey.KeyACK {
+			if eapolKey.KeyMIC {
+				msgNum = 3 // Message 3 of 4 (AP -> STA)
+			} else {
+				msgNum = 1 // Message 1 of 4 (AP -> STA)
+			}
+		} else {
+			if eapolKey.KeyMIC {
+				if eapolKey.KeyDataLength == 0 {
+					msgNum = 4 // Message 4 of 4 (STA -> AP, no key data)
+				} else {
+					msgNum = 2 // Message 2 of 4 (STA -> AP, has key data)
+				}
+			}
+		}
+		info.Info = fmt.Sprintf("Key (Message %d of 4)", msgNum)
+	}
+
 	// Parse ARP
 	if arpLayer := packet.Layer(layers.LayerTypeARP); arpLayer != nil {
 		arp := arpLayer.(*layers.ARP)
@@ -984,4 +1152,27 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
+}
+
+// extractSSIDFromIE extracts SSID from 802.11 Information Elements data.
+// IE format: [ID (1 byte)][Length (1 byte)][Data (Length bytes)]...
+// SSID is IE ID 0.
+func extractSSIDFromIE(data []byte) string {
+	offset := 0
+	for offset+2 <= len(data) {
+		ieID := data[offset]
+		ieLen := int(data[offset+1])
+		if offset+2+ieLen > len(data) {
+			break
+		}
+		if ieID == 0 { // SSID
+			ssid := data[offset+2 : offset+2+ieLen]
+			if len(ssid) > 0 {
+				return string(ssid)
+			}
+			return ""
+		}
+		offset += 2 + ieLen
+	}
+	return ""
 }

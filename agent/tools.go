@@ -1,24 +1,41 @@
 package agent
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
 )
 
+// PacketReader provides read-only access to packet data.
+// This interface allows ToolExecutor to read from a shared data source
+// without maintaining its own copy. Implementations include:
+//   - uiadapter.MemoryStore (live capture)
+//   - uiadapter.IndexedStore (file analysis)
+type PacketReader interface {
+	// Count returns the total number of packets.
+	Count() int
+
+	// GetRange returns packets in the given range (0-based offset, limit).
+	// Returns packets as capture.PacketInfo for tool processing.
+	GetPacketsForAgent(offset, limit int) []capture.PacketInfo
+
+	// GetPacket returns a single packet by number (1-based).
+	// Returns nil if not found.
+	GetPacketForAgent(number int) *capture.PacketInfo
+
+	// GetRaw returns raw packet bytes by number (1-based).
+	GetRaw(number int) ([]byte, error)
+}
+
 // ToolExecutor handles tool execution with security constraints
 type ToolExecutor struct {
-	capturer   *capture.Capturer
-	packets    []capture.PacketInfo
-	packetMu   sync.RWMutex
-	packetChan <-chan capture.PacketInfo
-	stopChan   chan struct{}
+	capturer     *capture.Capturer
+	packetReader PacketReader // Shared packet data source
 
 	// Security configuration
 	redactConfig  *RedactConfig
@@ -27,16 +44,25 @@ type ToolExecutor struct {
 
 	// Authorization system
 	authStore *AuthorizationStore
+
+	// Web search client
+	webSearchClient *WebSearchClient
 }
 
+// NewToolExecutor creates a new ToolExecutor.
+// Note: Call SetPacketReader to provide packet data access.
 func NewToolExecutor() *ToolExecutor {
 	return &ToolExecutor{
-		packets:       make([]capture.PacketInfo, 0),
-		stopChan:      make(chan struct{}),
-		redactConfig:  DefaultRedactConfig(),
-		rawDataPolicy: DefaultRawDataPolicy(),
-		authStore:     NewAuthorizationStore(),
+		redactConfig:    DefaultRedactConfig(),
+		rawDataPolicy:   DefaultRawDataPolicy(),
+		authStore:       NewAuthorizationStore(),
+		webSearchClient: NewWebSearchClient(),
 	}
+}
+
+// SetPacketReader sets the packet data source for the executor.
+func (t *ToolExecutor) SetPacketReader(reader PacketReader) {
+	t.packetReader = reader
 }
 
 // SetRedactConfig sets the redaction configuration
@@ -96,25 +122,33 @@ func (t *ToolExecutor) SetCapturer(c *capture.Capturer) {
 	t.capturer = c
 }
 
-// SetPacketChannel sets the packet channel for receiving packets
-func (t *ToolExecutor) SetPacketChannel(ch <-chan capture.PacketInfo) {
-	t.packetChan = ch
-}
-
-// AddPacket adds a packet to the executor's packet list
-func (t *ToolExecutor) AddPacket(p capture.PacketInfo) {
-	t.packetMu.Lock()
-	defer t.packetMu.Unlock()
-	t.packets = append(t.packets, p)
-}
-
-// GetPackets returns all captured packets
+// GetPackets returns all captured packets from the shared data source.
+// Returns empty slice if no packet reader is configured.
 func (t *ToolExecutor) GetPackets() []capture.PacketInfo {
-	t.packetMu.RLock()
-	defer t.packetMu.RUnlock()
-	result := make([]capture.PacketInfo, len(t.packets))
-	copy(result, t.packets)
-	return result
+	if t.packetReader == nil {
+		return nil
+	}
+	count := t.packetReader.Count()
+	if count == 0 {
+		return nil
+	}
+	return t.packetReader.GetPacketsForAgent(0, count)
+}
+
+// GetPacket returns a single packet by number from the shared data source.
+func (t *ToolExecutor) GetPacket(number int) *capture.PacketInfo {
+	if t.packetReader == nil {
+		return nil
+	}
+	return t.packetReader.GetPacketForAgent(number)
+}
+
+// GetPacketCount returns the number of packets available.
+func (t *ToolExecutor) GetPacketCount() int {
+	if t.packetReader == nil {
+		return 0
+	}
+	return t.packetReader.Count()
 }
 
 // GetTools returns all available tools with updated descriptions
@@ -292,6 +326,46 @@ func GetTools() []llm.Tool {
 				"required":   []string{},
 			},
 		},
+		{
+			Name:        "lookup_rfc",
+			Description: fmt.Sprintf("查阅 RFC 文档。如果提供 RFC 编号（如 '793'），将直接返回文档内容；如果提供关键词（如 'TCP congestion'），将返回匹配的 RFC 列表。最大返回 %d 字符。", MaxRFCContentChars),
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "RFC 编号（如 '793'、'rfc 2616'）或搜索关键词（如 'TCP congestion control'）",
+					},
+					"section": map[string]interface{}{
+						"type":        "string",
+						"description": "要读取的章节号，如 '3' 或 '3.4'。仅在查询特定 RFC 时有效。",
+					},
+					"max_chars": map[string]interface{}{
+						"type":        "integer",
+						"description": fmt.Sprintf("最大返回字符数，默认 %d", DefaultContentChars),
+					},
+				},
+				"required": []string{"query"},
+			},
+		},
+		{
+			Name:        "web_search",
+			Description: fmt.Sprintf("搜索网络并获取内容。执行网络搜索后自动获取结果页面的完整内容，无需单独获取 URL。适合查找技术文档、故障排除指南等。默认返回 1 个结果的完整内容。"),
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "搜索关键词（如 'TCP retransmission troubleshooting'）",
+					},
+					"max_results": map[string]interface{}{
+						"type":        "integer",
+						"description": "返回结果数量，默认 1，最多 3（获取更多结果会更慢）",
+					},
+				},
+				"required": []string{"query"},
+			},
+		},
 	}
 }
 
@@ -332,6 +406,10 @@ func (t *ToolExecutor) ExecuteTool(name string, input map[string]interface{}) (s
 		return t.findHTTPRequests(input)
 	case "detect_anomalies":
 		return t.detectAnomalies(input)
+	case "lookup_rfc":
+		return t.lookupRFC(input)
+	case "web_search":
+		return t.webSearch(input)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -1364,9 +1442,57 @@ func parsePort(s string) uint16 {
 	return port
 }
 
-// MarshalPackets for proper JSON serialization
-func (t *ToolExecutor) MarshalPackets() ([]byte, error) {
-	t.packetMu.RLock()
-	defer t.packetMu.RUnlock()
-	return json.Marshal(t.packets)
+// --- Web search tool handlers ---
+
+// lookupRFC handles the lookup_rfc tool (unified search + content fetch)
+func (t *ToolExecutor) lookupRFC(input map[string]interface{}) (string, error) {
+	query := ValidateStringParam(input, "query")
+	if query == "" {
+		return "", fmt.Errorf("query 参数是必需的")
+	}
+
+	section := ValidateStringParam(input, "section")
+
+	maxChars := DefaultContentChars
+	if v, ok := input["max_chars"].(float64); ok {
+		maxChars = ClampInt(int(v), 1, MaxRFCContentChars)
+	}
+
+	limit := DefaultWebResults
+	if v, ok := input["limit"].(float64); ok {
+		limit = ClampInt(int(v), 1, MaxWebSearchResults)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout*time.Second)
+	defer cancel()
+
+	content, err := t.webSearchClient.LookupRFC(ctx, query, section, maxChars, limit)
+	if err != nil {
+		return "", fmt.Errorf("查阅 RFC 失败: %w", err)
+	}
+
+	return content, nil
+}
+
+// webSearch handles the web_search tool (unified search + content fetch)
+func (t *ToolExecutor) webSearch(input map[string]interface{}) (string, error) {
+	query := ValidateStringParam(input, "query")
+	if query == "" {
+		return "", fmt.Errorf("query 参数是必需的")
+	}
+
+	maxResults := 1
+	if v, ok := input["max_results"].(float64); ok {
+		maxResults = ClampInt(int(v), 1, 3)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), FetchTimeout*time.Second)
+	defer cancel()
+
+	content, err := t.webSearchClient.WebSearch(ctx, query, maxResults, MaxURLContentChars/maxResults)
+	if err != nil {
+		return "", fmt.Errorf("网络搜索失败: %w", err)
+	}
+
+	return content, nil
 }

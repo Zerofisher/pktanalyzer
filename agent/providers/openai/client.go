@@ -1,30 +1,29 @@
-// Package openai provides OpenAI API client (also used as base for compatible APIs)
+// Package openai provides OpenAI API client using the official SDK
 package openai
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"strings"
+
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/ssestream"
 
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 )
 
 const (
 	DefaultBaseURL = "https://api.openai.com/v1"
-	DefaultModel   = "gpt-4.1-mini"
+	DefaultModel   = "gpt-5.1"
 )
 
 // Client implements llm.Client for OpenAI and compatible APIs
 type Client struct {
-	config     *llm.Config
-	httpClient *http.Client
-	provider   llm.Provider
+	config   *llm.Config
+	sdk      openai.Client
+	provider llm.Provider
 }
 
 // New creates a new OpenAI client
@@ -54,11 +53,26 @@ func New(cfg *llm.Config) (*Client, error) {
 		}
 	}
 
+	// Build SDK options
+	opts := []option.RequestOption{
+		option.WithAPIKey(apiKey),
+	}
+
+	// Add custom base URL if not default
+	if cfg.BaseURL != DefaultBaseURL {
+		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
+	}
+
+	// Add extra headers
+	for k, v := range cfg.ExtraHeader {
+		opts = append(opts, option.WithHeader(k, v))
+	}
+
+	sdk := openai.NewClient(opts...)
+
 	return &Client{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
-		},
+		config:   cfg,
+		sdk:      sdk,
 		provider: llm.ProviderOpenAI,
 	}, nil
 }
@@ -89,11 +103,24 @@ func newClientInternal(cfg *llm.Config) (*Client, error) {
 		cfg.Model = DefaultModel
 	}
 
+	// Build SDK options
+	opts := []option.RequestOption{
+		option.WithAPIKey(cfg.APIKey),
+	}
+
+	if cfg.BaseURL != DefaultBaseURL {
+		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
+	}
+
+	for k, v := range cfg.ExtraHeader {
+		opts = append(opts, option.WithHeader(k, v))
+	}
+
+	sdk := openai.NewClient(opts...)
+
 	return &Client{
 		config: cfg,
-		httpClient: &http.Client{
-			Timeout: cfg.Timeout,
-		},
+		sdk:    sdk,
 	}, nil
 }
 
@@ -106,398 +133,112 @@ func (c *Client) ModelID() string {
 }
 
 func (c *Client) Chat(ctx context.Context, req *llm.ChatRequest) (*llm.ChatResponse, error) {
-	// Convert to OpenAI format
-	openaiReq := c.buildRequest(req)
+	params := c.buildParams(req)
 
-	body, err := json.Marshal(openaiReq)
+	completion, err := c.sdk.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("chat completion failed: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-
-	// Add extra headers
-	for k, v := range c.config.ExtraHeader {
-		httpReq.Header.Set(k, v)
-	}
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var openaiResp openaiResponse
-	if err := json.Unmarshal(respBody, &openaiResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return c.parseResponse(&openaiResp)
+	return c.parseResponse(completion)
 }
 
 // ChatStream implements streaming chat with OpenAI API
 func (c *Client) ChatStream(ctx context.Context, req *llm.ChatRequest) (<-chan llm.StreamEvent, error) {
-	// Convert to OpenAI format with stream enabled
-	openaiReq := c.buildRequest(req)
+	params := c.buildParams(req)
 
-	// Build streaming request body
-	streamReq := struct {
-		*openaiRequest
-		Stream bool `json:"stream"`
-	}{
-		openaiRequest: openaiReq,
-		Stream:        true,
-	}
-
-	body, err := json.Marshal(streamReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL+"/chat/completions", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+c.config.APIKey)
-
-	// Add extra headers
-	for k, v := range c.config.ExtraHeader {
-		httpReq.Header.Set(k, v)
-	}
-
-	// Don't use the default client with timeout for streaming
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
-	}
+	stream := c.sdk.Chat.Completions.NewStreaming(ctx, params)
 
 	eventChan := make(chan llm.StreamEvent, 100)
 
-	go c.processSSEStream(ctx, resp.Body, eventChan)
+	go c.processStream(ctx, stream, eventChan)
 
 	return eventChan, nil
 }
 
-// openaiStreamChunk represents a streaming response chunk from OpenAI
-type openaiStreamChunk struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index int `json:"index"`
-		Delta struct {
-			Role      string           `json:"role,omitempty"`
-			Content   string           `json:"content,omitempty"`
-			ToolCalls []openaiToolCall `json:"tool_calls,omitempty"`
-		} `json:"delta"`
-		FinishReason string `json:"finish_reason,omitempty"`
-	} `json:"choices"`
-}
-
-// processSSEStream processes Server-Sent Events from OpenAI API
-func (c *Client) processSSEStream(ctx context.Context, body io.ReadCloser, eventChan chan<- llm.StreamEvent) {
-	defer close(eventChan)
-	defer body.Close()
-
-	scanner := bufio.NewScanner(body)
-	// Increase buffer size for large events
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-
-	// Track tool call state (OpenAI sends incremental updates)
-	toolCalls := make(map[int]*llm.ToolCall)
-	toolArgsBuilders := make(map[int]*strings.Builder)
-	var lastFinishReason string
-
-	eventChan <- llm.StreamEvent{Type: llm.StreamEventStart}
-
-	for scanner.Scan() {
-		select {
-		case <-ctx.Done():
-			eventChan <- llm.StreamEvent{Type: llm.StreamEventError, Error: ctx.Err()}
-			return
-		default:
-		}
-
-		line := scanner.Text()
-
-		// OpenAI SSE format: "data: <json>" or "data: [DONE]"
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "[DONE]" {
-			// Finalize any pending tool calls
-			for idx, tc := range toolCalls {
-				if builder, ok := toolArgsBuilders[idx]; ok {
-					jsonStr := builder.String()
-					if jsonStr != "" {
-						var args map[string]any
-						if err := json.Unmarshal([]byte(jsonStr), &args); err == nil {
-							tc.Arguments = args
-						}
-					}
-				}
-				eventChan <- llm.StreamEvent{
-					Type:      llm.StreamEventToolEnd,
-					ToolCall:  tc,
-					ToolIndex: idx,
-				}
-			}
-			eventChan <- llm.StreamEvent{
-				Type:       llm.StreamEventEnd,
-				StopReason: lastFinishReason,
-			}
-			return
-		}
-
-		var chunk openaiStreamChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue // Skip malformed chunks
-		}
-
-		if len(chunk.Choices) == 0 {
-			continue
-		}
-
-		choice := chunk.Choices[0]
-
-		// Handle content delta
-		if choice.Delta.Content != "" {
-			eventChan <- llm.StreamEvent{
-				Type:  llm.StreamEventDelta,
-				Delta: choice.Delta.Content,
-			}
-		}
-
-		// Handle tool calls (OpenAI sends them incrementally)
-		for _, tc := range choice.Delta.ToolCalls {
-			idx := tc.Index
-
-			// Check if this is a new tool call
-			if _, exists := toolCalls[idx]; !exists {
-				toolCalls[idx] = &llm.ToolCall{
-					ID:        tc.ID,
-					Name:      tc.Function.Name,
-					Arguments: make(map[string]any),
-				}
-				toolArgsBuilders[idx] = &strings.Builder{}
-
-				// Send tool start event
-				eventChan <- llm.StreamEvent{
-					Type:      llm.StreamEventToolStart,
-					ToolCall:  toolCalls[idx],
-					ToolIndex: idx,
-				}
-			}
-
-			// Update tool call ID and name if provided
-			if tc.ID != "" {
-				toolCalls[idx].ID = tc.ID
-			}
-			if tc.Function.Name != "" {
-				toolCalls[idx].Name = tc.Function.Name
-			}
-
-			// Accumulate arguments
-			if tc.Function.Arguments != "" {
-				toolArgsBuilders[idx].WriteString(tc.Function.Arguments)
-				eventChan <- llm.StreamEvent{
-					Type:      llm.StreamEventToolDelta,
-					Delta:     tc.Function.Arguments,
-					ToolIndex: idx,
-				}
-			}
-		}
-
-		// Record finish reason (don't send end event yet, wait for [DONE])
-		if choice.FinishReason != "" {
-			lastFinishReason = choice.FinishReason
-		}
-	}
-
-	// If we exit the loop without [DONE], still send end event
-	if err := scanner.Err(); err != nil {
-		eventChan <- llm.StreamEvent{Type: llm.StreamEventError, Error: err}
-	} else {
-		// Stream ended without [DONE] - this can happen with some providers
-		// Finalize any pending tool calls
-		for idx, tc := range toolCalls {
-			if builder, ok := toolArgsBuilders[idx]; ok {
-				jsonStr := builder.String()
-				if jsonStr != "" {
-					var args map[string]any
-					if err := json.Unmarshal([]byte(jsonStr), &args); err == nil {
-						tc.Arguments = args
-					}
-				}
-			}
-			eventChan <- llm.StreamEvent{
-				Type:      llm.StreamEventToolEnd,
-				ToolCall:  tc,
-				ToolIndex: idx,
-			}
-		}
-		eventChan <- llm.StreamEvent{
-			Type:       llm.StreamEventEnd,
-			StopReason: lastFinishReason,
-		}
-	}
-}
-
-// OpenAI API types
-type openaiRequest struct {
-	Model       string          `json:"model"`
-	Messages    []openaiMessage `json:"messages"`
-	Tools       []openaiTool    `json:"tools,omitempty"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	Temperature float64         `json:"temperature,omitempty"`
-}
-
-type openaiMessage struct {
-	Role       string           `json:"role"`
-	Content    string           `json:"content,omitempty"`
-	ToolCalls  []openaiToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string           `json:"tool_call_id,omitempty"`
-}
-
-type openaiTool struct {
-	Type     string         `json:"type"`
-	Function openaiFunction `json:"function"`
-}
-
-type openaiFunction struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Parameters  map[string]any `json:"parameters"`
-}
-
-type openaiToolCall struct {
-	Index    int    `json:"index,omitempty"` // Used in streaming responses
-	ID       string `json:"id,omitempty"`
-	Type     string `json:"type,omitempty"`
-	Function struct {
-		Name      string `json:"name,omitempty"`
-		Arguments string `json:"arguments,omitempty"`
-	} `json:"function"`
-}
-
-type openaiResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index   int `json:"index"`
-		Message struct {
-			Role      string           `json:"role"`
-			Content   string           `json:"content"`
-			ToolCalls []openaiToolCall `json:"tool_calls"`
-		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
-}
-
-func (c *Client) buildRequest(req *llm.ChatRequest) *openaiRequest {
+func (c *Client) buildParams(req *llm.ChatRequest) openai.ChatCompletionNewParams {
 	model := req.Model
 	if model == "" {
 		model = c.config.Model
 	}
 
+	params := openai.ChatCompletionNewParams{
+		Model: model,
+	}
+
+	// Set max tokens (SDK handles max_tokens vs max_completion_tokens automatically)
 	maxTokens := req.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = 4096
 	}
-
-	openaiReq := &openaiRequest{
-		Model:     model,
-		MaxTokens: maxTokens,
-	}
+	params.MaxCompletionTokens = openai.Int(int64(maxTokens))
 
 	if req.Temperature > 0 {
-		openaiReq.Temperature = req.Temperature
+		params.Temperature = openai.Float(req.Temperature)
 	}
 
 	// Convert messages
 	for _, msg := range req.Messages {
-		om := openaiMessage{Role: string(msg.Role)}
-
-		if msg.Role == llm.RoleTool && msg.ToolResult != nil {
-			// Tool result message
-			om.Role = "tool"
-			om.Content = msg.ToolResult.Content
-			om.ToolCallID = msg.ToolResult.ToolCallID
-		} else if len(msg.ToolCalls) > 0 {
-			// Assistant message with tool calls
-			om.Content = msg.Content
-			for _, tc := range msg.ToolCalls {
-				argsJSON, _ := json.Marshal(tc.Arguments)
-				om.ToolCalls = append(om.ToolCalls, openaiToolCall{
-					ID:   tc.ID,
-					Type: "function",
-					Function: struct {
-						Name      string `json:"name,omitempty"`
-						Arguments string `json:"arguments,omitempty"`
-					}{
-						Name:      tc.Name,
-						Arguments: string(argsJSON),
-					},
-				})
-			}
-		} else {
-			om.Content = msg.Content
-		}
-
-		openaiReq.Messages = append(openaiReq.Messages, om)
+		params.Messages = append(params.Messages, c.convertMessage(msg))
 	}
 
 	// Convert tools
 	for _, t := range req.Tools {
-		openaiReq.Tools = append(openaiReq.Tools, openaiTool{
-			Type: "function",
-			Function: openaiFunction{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Parameters,
+		params.Tools = append(params.Tools, openai.ChatCompletionToolUnionParam{
+			OfFunction: &openai.ChatCompletionFunctionToolParam{
+				Function: openai.FunctionDefinitionParam{
+					Name:        t.Name,
+					Description: openai.String(t.Description),
+					Parameters:  openai.FunctionParameters(t.Parameters),
+				},
 			},
 		})
 	}
 
-	return openaiReq
+	return params
 }
 
-func (c *Client) parseResponse(resp *openaiResponse) (*llm.ChatResponse, error) {
+func (c *Client) convertMessage(msg llm.Message) openai.ChatCompletionMessageParamUnion {
+	switch msg.Role {
+	case llm.RoleSystem:
+		return openai.SystemMessage(msg.Content)
+	case llm.RoleUser:
+		return openai.UserMessage(msg.Content)
+	case llm.RoleAssistant:
+		if len(msg.ToolCalls) > 0 {
+			// Assistant message with tool calls
+			var toolCalls []openai.ChatCompletionMessageToolCallUnionParam
+			for _, tc := range msg.ToolCalls {
+				argsJSON, _ := json.Marshal(tc.Arguments)
+				toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+					OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+						ID: tc.ID,
+						Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+							Name:      tc.Name,
+							Arguments: string(argsJSON),
+						},
+					},
+				})
+			}
+			return openai.ChatCompletionMessageParamUnion{
+				OfAssistant: &openai.ChatCompletionAssistantMessageParam{
+					Content:   openai.ChatCompletionAssistantMessageParamContentUnion{OfString: openai.String(msg.Content)},
+					ToolCalls: toolCalls,
+				},
+			}
+		}
+		return openai.AssistantMessage(msg.Content)
+	case llm.RoleTool:
+		if msg.ToolResult != nil {
+			return openai.ToolMessage(msg.ToolResult.Content, msg.ToolResult.ToolCallID)
+		}
+		return openai.ToolMessage(msg.Content, "")
+	default:
+		return openai.UserMessage(msg.Content)
+	}
+}
+
+func (c *Client) parseResponse(resp *openai.ChatCompletion) (*llm.ChatResponse, error) {
 	if len(resp.Choices) == 0 {
 		return nil, fmt.Errorf("no choices in response")
 	}
@@ -505,11 +246,11 @@ func (c *Client) parseResponse(resp *openaiResponse) (*llm.ChatResponse, error) 
 	choice := resp.Choices[0]
 	result := &llm.ChatResponse{
 		Content:    choice.Message.Content,
-		StopReason: choice.FinishReason,
+		StopReason: string(choice.FinishReason),
 		Usage: &llm.Usage{
-			PromptTokens:     resp.Usage.PromptTokens,
-			CompletionTokens: resp.Usage.CompletionTokens,
-			TotalTokens:      resp.Usage.TotalTokens,
+			PromptTokens:     int(resp.Usage.PromptTokens),
+			CompletionTokens: int(resp.Usage.CompletionTokens),
+			TotalTokens:      int(resp.Usage.TotalTokens),
 		},
 	}
 
@@ -525,4 +266,92 @@ func (c *Client) parseResponse(resp *openaiResponse) (*llm.ChatResponse, error) 
 	}
 
 	return result, nil
+}
+
+func (c *Client) processStream(ctx context.Context, stream *ssestream.Stream[openai.ChatCompletionChunk], eventChan chan<- llm.StreamEvent) {
+	defer close(eventChan)
+
+	acc := openai.ChatCompletionAccumulator{}
+	eventChan <- llm.StreamEvent{Type: llm.StreamEventStart}
+
+	toolCallsSent := make(map[int]bool)
+
+	for stream.Next() {
+		select {
+		case <-ctx.Done():
+			eventChan <- llm.StreamEvent{Type: llm.StreamEventError, Error: ctx.Err()}
+			return
+		default:
+		}
+
+		chunk := stream.Current()
+		acc.AddChunk(chunk)
+
+		// Handle content delta
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+			eventChan <- llm.StreamEvent{
+				Type:  llm.StreamEventDelta,
+				Delta: chunk.Choices[0].Delta.Content,
+			}
+		}
+
+		// Handle tool calls
+		if len(chunk.Choices) > 0 {
+			for _, tc := range chunk.Choices[0].Delta.ToolCalls {
+				idx := int(tc.Index)
+
+				// Send tool start event if this is a new tool call
+				if !toolCallsSent[idx] && tc.Function.Name != "" {
+					toolCallsSent[idx] = true
+					eventChan <- llm.StreamEvent{
+						Type: llm.StreamEventToolStart,
+						ToolCall: &llm.ToolCall{
+							ID:   tc.ID,
+							Name: tc.Function.Name,
+						},
+						ToolIndex: idx,
+					}
+				}
+
+				// Send tool delta for arguments
+				if tc.Function.Arguments != "" {
+					eventChan <- llm.StreamEvent{
+						Type:      llm.StreamEventToolDelta,
+						Delta:     tc.Function.Arguments,
+						ToolIndex: idx,
+					}
+				}
+			}
+		}
+
+		// Detect finished tool calls using accumulator
+		if tool, ok := acc.JustFinishedToolCall(); ok {
+			var args map[string]any
+			json.Unmarshal([]byte(tool.Arguments), &args)
+			eventChan <- llm.StreamEvent{
+				Type: llm.StreamEventToolEnd,
+				ToolCall: &llm.ToolCall{
+					ID:        tool.ID,
+					Name:      tool.Name,
+					Arguments: args,
+				},
+				ToolIndex: int(tool.Index),
+			}
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		eventChan <- llm.StreamEvent{Type: llm.StreamEventError, Error: err}
+		return
+	}
+
+	// Send end event with stop reason
+	stopReason := ""
+	if len(acc.Choices) > 0 {
+		stopReason = string(acc.Choices[0].FinishReason)
+	}
+	eventChan <- llm.StreamEvent{
+		Type:       llm.StreamEventEnd,
+		StopReason: stopReason,
+	}
 }

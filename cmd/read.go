@@ -3,15 +3,14 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/Zerofisher/pktanalyzer/agent"
-	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/export"
-	"github.com/Zerofisher/pktanalyzer/filter"
-	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/Zerofisher/pktanalyzer/tls"
+	"github.com/Zerofisher/pktanalyzer/internal/app"
+	"github.com/Zerofisher/pktanalyzer/pkg/ingest"
 	"github.com/Zerofisher/pktanalyzer/ui"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +21,7 @@ var (
 	readEnableStreams bool
 	readEnableAI      bool
 	readBPFFilter     string
+	readUseIndex      bool
 )
 
 var readCmd = &cobra.Command{
@@ -101,6 +101,8 @@ func init() {
 		"Enable AI assistant (requires API key)")
 	readCmd.PersistentFlags().StringVarP(&readBPFFilter, "bpf", "f", "",
 		"BPF filter expression (capture filter)")
+	readCmd.Flags().BoolVarP(&readUseIndex, "index", "I", false,
+		"Use indexed mode (SQLite-backed, supports large files)")
 
 	// text subcommand flags
 	readTextCmd.Flags().IntVarP(&readTextCount, "count", "c", 0, "Stop after n packets (0 = unlimited)")
@@ -122,222 +124,154 @@ func init() {
 }
 
 // setupReadCapturer creates a file capturer with common configuration
-func setupReadCapturer(file string) (*capture.Capturer, *tls.Decryptor, error) {
-	capturer, err := capture.NewFileCapturer(file, readBPFFilter)
+func setupReadCapturer(file string) (*capture.Capturer, error) {
+	result, err := app.SetupCapturer(app.CaptureConfig{
+		Source:        file,
+		IsLive:        false,
+		BPFFilter:     readBPFFilter,
+		KeylogFile:    readKeylogFile,
+		EnableStreams: readEnableStreams,
+	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("error opening file: %w", err)
+		return nil, err
 	}
-
-	// Load TLS key log if specified
-	var tlsDecryptor *tls.Decryptor
-	if readKeylogFile != "" {
-		keyLog, err := tls.LoadKeyLogFile(readKeylogFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Failed to load key log file: %v\n", err)
-		} else {
-			tlsDecryptor = tls.NewDecryptor(keyLog)
-			capturer.SetDecryptor(tlsDecryptor)
-		}
-	}
-
-	// Enable stream reassembly if requested
-	if readEnableStreams {
-		streamMgr := stream.NewStreamManager()
-		capturer.SetStreamManager(streamMgr)
-	}
-
-	return capturer, tlsDecryptor, nil
-}
-
-// compileDisplayFilter compiles a display filter if specified
-func compileDisplayFilter(filterStr string) (func(*capture.PacketInfo) bool, error) {
-	if filterStr == "" {
-		return nil, nil
-	}
-	return filter.Compile(filterStr)
+	return result.Capturer, nil
 }
 
 // runRead runs the TUI mode for reading pcap files
 func runRead(cmd *cobra.Command, args []string) error {
 	file := args[0]
 
-	capturer, tlsDecryptor, err := setupReadCapturer(file)
+	// Check for indexed mode
+	if readUseIndex {
+		return runReadIndexed(file)
+	}
+
+	capturer, err := setupReadCapturer(file)
 	if err != nil {
 		return err
 	}
 
 	// Print info
 	fmt.Printf("Reading packets from %s...\n", file)
-	if tlsDecryptor != nil {
+	if readKeylogFile != "" {
 		fmt.Printf("Loaded TLS session keys from %s\n", readKeylogFile)
 	}
 	if readEnableStreams {
 		fmt.Println("TCP stream reassembly enabled. Press 's' to view streams.")
 	}
 
+	// Create MemoryStore for live capture
+	store := uiadapter.NewMemoryStore()
+	defer store.Close()
+
 	// Start capture
 	packetChan := capturer.Start()
 
 	// Initialize AI agent if requested
-	var aiAgent *agent.Agent
+	var ai uiadapter.AIAssistant
 	if readEnableAI {
-		provider := llm.DetectProvider()
-		if provider == "" {
-			fmt.Fprintf(os.Stderr, "Warning: AI enabled but no API key found.\n")
-			fmt.Fprintf(os.Stderr, "Set ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, or OLLAMA_BASE_URL.\n")
-		} else {
-			aiAgent, err = agent.NewAgent(provider)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: Failed to initialize AI agent: %v\n", err)
-			} else {
-				fmt.Printf("AI assistant enabled (using %s). Press 'a' to chat.\n", provider)
-				aiAgent.SetCapturer(capturer)
-			}
-		}
+		ai = app.SetupAI(app.AIConfig{
+			Capturer:     capturer,
+			PacketReader: store,
+		})
 	}
 
 	// Run TUI
-	if aiAgent != nil {
-		return ui.RunWithAI(packetChan, capturer, false, aiAgent)
+	if ai != nil {
+		return ui.RunWithAI(store, packetChan, capturer, false, ai)
 	}
-	return ui.Run(packetChan, capturer, false)
+	return ui.Run(store, packetChan, capturer, false)
 }
 
 // runReadText outputs packets as text
 func runReadText(cmd *cobra.Command, args []string) error {
-	file := args[0]
+	return app.RunExport(os.Stdout, app.ExportConfig{
+		CaptureConfig: app.CaptureConfig{
+			Source:        args[0],
+			IsLive:        false,
+			BPFFilter:     readBPFFilter,
+			KeylogFile:    readKeylogFile,
+			EnableStreams: readEnableStreams,
+		},
+		DisplayFilter: readDisplayFilter,
+		Format:        export.FormatText,
+		MaxCount:      readTextCount,
+		ShowDetail:    readTextVerbose,
+		ShowHex:       readTextHex,
+	})
+}
 
-	capturer, _, err := setupReadCapturer(file)
+// runReadIndexed runs the TUI in indexed mode (SQLite-backed)
+func runReadIndexed(file string) error {
+	// Check if index exists and is valid
+	needsIndex, err := ingest.NeedsReindex(file)
 	if err != nil {
-		return err
+		return fmt.Errorf("check index: %w", err)
 	}
 
-	// Compile display filter
-	filterFunc, err := compileDisplayFilter(readDisplayFilter)
+	if needsIndex {
+		fmt.Printf("Indexing %s...\n", file)
+		result, err := ingest.IndexFile(file, func(processed, total int, elapsed time.Duration) {
+			fmt.Printf("\rProcessed %d packets...", processed)
+		})
+		if err != nil {
+			return fmt.Errorf("index file: %w", err)
+		}
+		fmt.Printf("\nIndexed %d packets, %d flows in %v\n\n", result.TotalPackets, result.TotalFlows, result.Duration.Round(time.Millisecond))
+	}
+
+	// Create indexed store
+	store, err := uiadapter.NewIndexedStore(file)
 	if err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error compiling display filter: %w", err)
+		return fmt.Errorf("open index: %w", err)
+	}
+	defer store.Close()
+
+	// Initialize AI agent if requested
+	var ai uiadapter.AIAssistant
+	if readEnableAI {
+		ai = app.SetupAI(app.AIConfig{
+			PacketReader: store,
+		})
 	}
 
-	// Create exporter
-	exporter := export.NewExporter(os.Stdout, export.FormatText)
-	exporter.SetMaxCount(readTextCount)
-	exporter.SetShowDetail(readTextVerbose)
-	exporter.SetShowHex(readTextHex)
-
-	if err := exporter.Start(); err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error starting export: %w", err)
-	}
-
-	// Start capture and process packets
-	packetChan := capturer.Start()
-	for pkt := range packetChan {
-		if filterFunc != nil && !filterFunc(&pkt) {
-			continue
-		}
-		if err := exporter.ExportPacket(&pkt); err != nil {
-			fmt.Fprintf(os.Stderr, "Error exporting packet: %v\n", err)
-		}
-		if exporter.ShouldStop() {
-			break
-		}
-	}
-
-	if err := exporter.Finish(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error finishing export: %v\n", err)
-	}
-	capturer.Stop()
-	return nil
+	return ui.RunWithStore(store, ai)
 }
 
 // runReadJSON outputs packets as JSON
 func runReadJSON(cmd *cobra.Command, args []string) error {
-	file := args[0]
-
-	capturer, _, err := setupReadCapturer(file)
-	if err != nil {
-		return err
-	}
-
-	filterFunc, err := compileDisplayFilter(readDisplayFilter)
-	if err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error compiling display filter: %w", err)
-	}
-
-	exporter := export.NewExporter(os.Stdout, export.FormatJSON)
-	exporter.SetMaxCount(readJSONCount)
-
-	if err := exporter.Start(); err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error starting export: %w", err)
-	}
-
-	packetChan := capturer.Start()
-	for pkt := range packetChan {
-		if filterFunc != nil && !filterFunc(&pkt) {
-			continue
-		}
-		if err := exporter.ExportPacket(&pkt); err != nil {
-			fmt.Fprintf(os.Stderr, "Error exporting packet: %v\n", err)
-		}
-		if exporter.ShouldStop() {
-			break
-		}
-	}
-
-	if err := exporter.Finish(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error finishing export: %v\n", err)
-	}
-	capturer.Stop()
-	return nil
+	return app.RunExport(os.Stdout, app.ExportConfig{
+		CaptureConfig: app.CaptureConfig{
+			Source:        args[0],
+			IsLive:        false,
+			BPFFilter:     readBPFFilter,
+			KeylogFile:    readKeylogFile,
+			EnableStreams: readEnableStreams,
+		},
+		DisplayFilter: readDisplayFilter,
+		Format:        export.FormatJSON,
+		MaxCount:      readJSONCount,
+	})
 }
 
 // runReadFields extracts specific fields from packets
 func runReadFields(cmd *cobra.Command, args []string) error {
-	file := args[0]
-
-	if len(readFieldsExtract) == 0 {
-		return fmt.Errorf("at least one field must be specified with -e")
-	}
-
-	capturer, _, err := setupReadCapturer(file)
-	if err != nil {
+	if err := app.ValidateFields(readFieldsExtract); err != nil {
 		return err
 	}
 
-	filterFunc, err := compileDisplayFilter(readDisplayFilter)
-	if err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error compiling display filter: %w", err)
-	}
-
-	exporter := export.NewExporter(os.Stdout, export.FormatFields)
-	exporter.SetMaxCount(readFieldsCount)
-	exporter.SetFields(readFieldsExtract)
-
-	if err := exporter.Start(); err != nil {
-		capturer.Stop()
-		return fmt.Errorf("error starting export: %w", err)
-	}
-
-	packetChan := capturer.Start()
-	for pkt := range packetChan {
-		if filterFunc != nil && !filterFunc(&pkt) {
-			continue
-		}
-		if err := exporter.ExportPacket(&pkt); err != nil {
-			fmt.Fprintf(os.Stderr, "Error exporting packet: %v\n", err)
-		}
-		if exporter.ShouldStop() {
-			break
-		}
-	}
-
-	if err := exporter.Finish(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error finishing export: %v\n", err)
-	}
-	capturer.Stop()
-	return nil
+	return app.RunExport(os.Stdout, app.ExportConfig{
+		CaptureConfig: app.CaptureConfig{
+			Source:        args[0],
+			IsLive:        false,
+			BPFFilter:     readBPFFilter,
+			KeylogFile:    readKeylogFile,
+			EnableStreams: readEnableStreams,
+		},
+		DisplayFilter: readDisplayFilter,
+		Format:        export.FormatFields,
+		MaxCount:      readFieldsCount,
+		Fields:        readFieldsExtract,
+	})
 }

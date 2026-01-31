@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/stream"
 )
@@ -26,30 +25,37 @@ func (m Model) renderPacketList() string {
 	sb.WriteString(headerStyle.Width(m.width).Render(header))
 	sb.WriteString("\n")
 
-	packets := m.getDisplayPackets()
+	count := m.getPacketCount()
 
 	// Adjust scroll to keep selected visible
-	if m.selectedIdx < m.scrollOffset {
-		m.scrollOffset = m.selectedIdx
+	scrollOffset := m.scrollOffset
+	if m.selectedIdx < scrollOffset {
+		scrollOffset = m.selectedIdx
 	}
-	if m.selectedIdx >= m.scrollOffset+listHeight {
-		m.scrollOffset = m.selectedIdx - listHeight + 1
+	if m.selectedIdx >= scrollOffset+listHeight {
+		scrollOffset = m.selectedIdx - listHeight + 1
 	}
+
+	// Get visible range of packets
+	packets := m.getDisplayPacketsRange(scrollOffset, listHeight)
 
 	// Render visible packets
-	for i := m.scrollOffset; i < len(packets) && i < m.scrollOffset+listHeight; i++ {
-		p := packets[i]
+	for i, p := range packets {
+		if p == nil {
+			continue
+		}
+		actualIdx := scrollOffset + i
 
 		timeStr := p.Timestamp.Format("15:04:05.000")
-		src := truncateStr(formatAddr(p.SrcIP, p.SrcPort), 22)
-		dst := truncateStr(formatAddr(p.DstIP, p.DstPort), 22)
+		src := truncateStr(p.FormatSrcEndpoint(), 22)
+		dst := truncateStr(p.FormatDstEndpoint(), 22)
 		info := truncateStr(p.Info, m.width-75)
 
 		line := fmt.Sprintf("%-6d %-15s %-22s %-22s %-8s %s",
 			p.Number, timeStr, src, dst, p.Protocol, info)
 
 		style := normalStyle
-		if i == m.selectedIdx {
+		if actualIdx == m.selectedIdx {
 			style = selectedStyle.Width(m.width)
 		} else {
 			style = getProtocolStyle(p.Protocol).Width(m.width)
@@ -60,22 +66,21 @@ func (m Model) renderPacketList() string {
 	}
 
 	// Fill remaining space
-	for i := len(packets) - m.scrollOffset; i < listHeight; i++ {
+	for i := len(packets); i < listHeight; i++ {
 		sb.WriteString("\n")
 	}
 
+	_ = count // suppress unused
 	return sb.String()
 }
 
 func (m Model) renderPacketDetail() string {
 	var sb strings.Builder
 
-	packets := m.getDisplayPackets()
-	if m.selectedIdx >= len(packets) {
+	p := m.getSelectedPacket()
+	if p == nil {
 		return "No packet selected"
 	}
-
-	p := packets[m.selectedIdx]
 
 	// Header
 	header := fmt.Sprintf("Packet #%d Details - %s", p.Number, p.Timestamp.Format("2006-01-02 15:04:05.000000"))
@@ -115,13 +120,26 @@ func (m Model) renderPacketDetail() string {
 func (m Model) renderHexDump() string {
 	var sb strings.Builder
 
-	packets := m.getDisplayPackets()
-	if m.selectedIdx >= len(packets) {
+	p := m.getSelectedPacket()
+	if p == nil {
 		return "No packet selected"
 	}
 
-	p := packets[m.selectedIdx]
-	data := p.RawData
+	// Get raw data
+	var data []byte
+	if p.HasRawData() {
+		data = p.RawPacketInfo.RawData
+	} else if m.store != nil {
+		var err error
+		data, err = m.store.GetRaw(p.Number)
+		if err != nil || len(data) == 0 {
+			return fmt.Sprintf("Packet #%d - Raw data not available", p.Number)
+		}
+	}
+
+	if len(data) == 0 {
+		return fmt.Sprintf("Packet #%d - No raw data", p.Number)
+	}
 
 	// Header
 	header := fmt.Sprintf("Packet #%d Hex Dump - %d bytes", p.Number, len(data))
@@ -277,10 +295,10 @@ func (m Model) renderStatusBar() string {
 		viewName = "Expert"
 	}
 
-	packets := m.getDisplayPackets()
+	count := m.getPacketCount()
 	selected := m.selectedIdx + 1
-	if selected > len(packets) {
-		selected = len(packets)
+	if selected > count {
+		selected = count
 	}
 
 	var status string
@@ -295,16 +313,9 @@ func (m Model) renderStatusBar() string {
 			mode, viewName, streamSelected, streamCount)
 	} else {
 		status = fmt.Sprintf("[%s] View: %s | Packet: %d/%d | Press ? for help, w to save, q to quit",
-			mode, viewName, selected, len(packets))
+			mode, viewName, selected, count)
 	}
 	return helpStyle.Width(m.width).Render(status)
-}
-
-func (m Model) getDisplayPackets() []capture.PacketInfo {
-	if m.filter == "" {
-		return m.packets
-	}
-	return m.filteredPkts
 }
 
 func (m Model) renderStreamList() string {
@@ -347,7 +358,7 @@ func (m Model) renderStreamList() string {
 			protocol = "-"
 		}
 
-		bytesStr := formatBytes(s.TotalBytes())
+		bytesStr := formatBytes(int64(s.TotalBytes()))
 		line := fmt.Sprintf("%-4d %-24s %-24s %-6d %-10s %-10s %-10s",
 			s.ID,
 			truncateStr(s.ClientAddr, 24),
@@ -697,24 +708,16 @@ func isHTTPData(data []byte) bool {
 	return false
 }
 
-func formatBytes(bytes int) string {
+func formatBytes(bytes int64) string {
 	if bytes < 1024 {
 		return fmt.Sprintf("%d B", bytes)
 	} else if bytes < 1024*1024 {
 		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	} else {
+	} else if bytes < 1024*1024*1024 {
 		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
+	} else {
+		return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
 	}
-}
-
-func formatAddr(ip, port string) string {
-	if ip == "" {
-		return ""
-	}
-	if port == "" {
-		return ip
-	}
-	return fmt.Sprintf("%s:%s", ip, port)
 }
 
 func truncateStr(s string, maxLen int) string {
@@ -901,8 +904,6 @@ func (m Model) renderPacketListLines(width, height int) []string {
 	header := fmt.Sprintf("%-6s %-12s %-16s %-8s", "No.", "Time", "Src/Dst", "Proto")
 	lines = append(lines, headerStyle.Width(width).Render(header))
 
-	packets := m.getDisplayPackets()
-
 	// Adjust scroll
 	listHeight := height - 1
 	startIdx := m.scrollOffset
@@ -913,14 +914,20 @@ func (m Model) renderPacketListLines(width, height int) []string {
 		startIdx = m.selectedIdx - listHeight + 1
 	}
 
-	for i := startIdx; i < len(packets) && i < startIdx+listHeight; i++ {
-		p := packets[i]
+	// Get visible range
+	packets := m.getDisplayPacketsRange(startIdx, listHeight)
+
+	for i, p := range packets {
+		if p == nil {
+			continue
+		}
+		actualIdx := startIdx + i
 		timeStr := p.Timestamp.Format("15:04:05")
-		addr := truncateStr(p.SrcIP, 16)
+		addr := truncateStr(p.FormatSrcEndpoint(), 16)
 
 		line := fmt.Sprintf("%-6d %-12s %-16s %-8s", p.Number, timeStr, addr, p.Protocol)
 
-		if i == m.selectedIdx {
+		if actualIdx == m.selectedIdx {
 			lines = append(lines, selectedStyle.Width(width).Render(line))
 		} else {
 			lines = append(lines, getProtocolStyle(p.Protocol).Width(width).Render(line))

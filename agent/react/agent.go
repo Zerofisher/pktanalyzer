@@ -7,7 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
+	"github.com/Zerofisher/pktanalyzer/agent/tracing"
 )
 
 // Policy defines the behavior of the ReAct loop
@@ -76,6 +81,16 @@ func (a *Agent) SetSystemPrompt(prompt string) {
 
 // Chat processes a user message and returns the final response
 func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
+	// Create top-level span for the entire agent chat
+	ctx, span := tracing.Tracer().Start(ctx, "agent.chat",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("input", tracing.Truncate(userMessage, 500)),
+	)
+
 	// Add user message
 	a.messages = append(a.messages, llm.Message{
 		Role:    llm.RoleUser,
@@ -86,7 +101,10 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 	for iteration := 0; iteration < a.policy.MaxIterations; iteration++ {
 		// P0-3: Check total tool calls limit
 		if a.policy.MaxTotalToolCalls > 0 && a.totalToolCalls >= a.policy.MaxTotalToolCalls {
-			return "", fmt.Errorf("已达到最大工具调用次数限制 (%d)，请缩小查询范围或使用更具体的过滤条件", a.policy.MaxTotalToolCalls)
+			err := fmt.Errorf("已达到最大工具调用次数限制 (%d)，请缩小查询范围或使用更具体的过滤条件", a.policy.MaxTotalToolCalls)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return "", err
 		}
 
 		// Prepare request
@@ -98,7 +116,10 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 		// Call LLM
 		resp, err := a.client.Chat(ctx, req)
 		if err != nil {
-			return "", fmt.Errorf("LLM error at iteration %d: %w", iteration, err)
+			llmErr := fmt.Errorf("LLM error at iteration %d: %w", iteration, err)
+			span.RecordError(llmErr)
+			span.SetStatus(codes.Error, llmErr.Error())
+			return "", llmErr
 		}
 
 		// No tool calls - we have our final answer
@@ -108,6 +129,12 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 				Role:    llm.RoleAssistant,
 				Content: resp.Content,
 			})
+			span.SetAttributes(
+				attribute.String("output", tracing.Truncate(resp.Content, 500)),
+				attribute.Int("agent.iterations", iteration+1),
+				attribute.Int("agent.total_tool_calls", a.totalToolCalls),
+			)
+			span.SetStatus(codes.Ok, "")
 			return resp.Content, nil
 		}
 
@@ -166,7 +193,10 @@ func (a *Agent) Chat(ctx context.Context, userMessage string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("max iterations (%d) reached without final response", a.policy.MaxIterations)
+	err := fmt.Errorf("max iterations (%d) reached without final response", a.policy.MaxIterations)
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+	return "", err
 }
 
 func (a *Agent) executeToolWithTimeout(ctx context.Context, tc llm.ToolCall) (string, error) {
@@ -259,6 +289,15 @@ type StreamEvent struct {
 
 // ChatStream processes a user message and streams the response
 func (a *Agent) ChatStream(ctx context.Context, userMessage string) (<-chan StreamEvent, error) {
+	// Create top-level span for the entire agent chat stream
+	ctx, span := tracing.Tracer().Start(ctx, "agent.chat_stream",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+
+	span.SetAttributes(
+		attribute.String("input", tracing.Truncate(userMessage, 500)),
+	)
+
 	// Add user message
 	a.messages = append(a.messages, llm.Message{
 		Role:    llm.RoleUser,
@@ -267,13 +306,14 @@ func (a *Agent) ChatStream(ctx context.Context, userMessage string) (<-chan Stre
 
 	eventChan := make(chan StreamEvent, 100)
 
-	go a.runStreamLoop(ctx, eventChan)
+	go a.runStreamLoop(ctx, span, eventChan)
 
 	return eventChan, nil
 }
 
-func (a *Agent) runStreamLoop(ctx context.Context, eventChan chan<- StreamEvent) {
+func (a *Agent) runStreamLoop(ctx context.Context, span trace.Span, eventChan chan<- StreamEvent) {
 	defer close(eventChan)
+	defer span.End()
 
 	for iteration := 0; iteration < a.policy.MaxIterations; iteration++ {
 		// P0-3: Check total tool calls limit
@@ -360,6 +400,12 @@ func (a *Agent) runStreamLoop(ctx context.Context, eventChan chan<- StreamEvent)
 				Role:    llm.RoleAssistant,
 				Content: content,
 			})
+			span.SetAttributes(
+				attribute.String("output", tracing.Truncate(content, 500)),
+				attribute.Int("agent.iterations", iteration+1),
+				attribute.Int("agent.total_tool_calls", a.totalToolCalls),
+			)
+			span.SetStatus(codes.Ok, "")
 			return
 		}
 

@@ -5,10 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/agent"
-	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/expert"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,7 +21,7 @@ type aiResponseMsg struct {
 	err     error
 }
 type aiStreamMsg struct {
-	event agent.StreamEvent
+	event uiadapter.StreamEvent
 	done  bool
 }
 type saveResultMsg struct {
@@ -50,14 +49,14 @@ func waitForPacket(packetChan <-chan capture.PacketInfo) tea.Cmd {
 
 // aiStreamStartMsg indicates stream has started with channel reference
 type aiStreamStartMsg struct {
-	eventChan <-chan agent.StreamEvent
+	eventChan <-chan uiadapter.StreamEvent
 	err       error
 }
 
 // sendAIMessageStream starts streaming AI response
-func sendAIMessageStream(aiAgent *agent.Agent, message string) tea.Cmd {
+func sendAIMessageStream(ai uiadapter.AIAssistant, message string) tea.Cmd {
 	return func() tea.Msg {
-		eventChan, err := aiAgent.ChatStream(message)
+		eventChan, err := ai.ChatStream(message)
 		if err != nil {
 			return aiStreamStartMsg{err: err}
 		}
@@ -66,7 +65,7 @@ func sendAIMessageStream(aiAgent *agent.Agent, message string) tea.Cmd {
 }
 
 // waitForNextStreamEvent waits for the next streaming event
-func waitForNextStreamEvent(eventChan <-chan agent.StreamEvent) tea.Cmd {
+func waitForNextStreamEvent(eventChan <-chan uiadapter.StreamEvent) tea.Cmd {
 	return func() tea.Msg {
 		event, ok := <-eventChan
 		if !ok {
@@ -77,15 +76,34 @@ func waitForNextStreamEvent(eventChan <-chan agent.StreamEvent) tea.Cmd {
 }
 
 // savePacketsCmd saves packets to a file asynchronously
-func savePacketsCmd(packets []capture.PacketInfo) tea.Cmd {
+func savePacketsCmd(store uiadapter.PacketStore) tea.Cmd {
 	return func() tea.Msg {
+		count := store.Count()
+		if count == 0 {
+			return saveResultMsg{err: fmt.Errorf("no packets to save")}
+		}
+
+		// Get all packets for saving
+		packets := store.GetRange(0, count)
 		if len(packets) == 0 {
 			return saveResultMsg{err: fmt.Errorf("no packets to save")}
 		}
 
+		// Convert DisplayPackets to PacketInfos for saving
+		var infos []capture.PacketInfo
+		for _, dp := range packets {
+			if dp.RawPacketInfo != nil {
+				infos = append(infos, *dp.RawPacketInfo)
+			}
+		}
+
+		if len(infos) == 0 {
+			return saveResultMsg{err: fmt.Errorf("no raw packet data available for saving")}
+		}
+
 		filename := capture.GenerateFilename("capture")
-		count, err := capture.SavePackets(filename, packets)
-		return saveResultMsg{filename: filename, count: count, err: err}
+		savedCount, err := capture.SavePackets(filename, infos)
+		return saveResultMsg{filename: filename, count: savedCount, err: err}
 	}
 }
 
@@ -97,10 +115,15 @@ func clearStatusCmd() tea.Cmd {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		waitForPacket(m.packetChan),
-		tickCmd(),
-	)
+	var cmds []tea.Cmd
+
+	// If we have a packet channel (live mode), start listening
+	if m.packetChan != nil {
+		cmds = append(cmds, waitForPacket(m.packetChan))
+	}
+
+	cmds = append(cmds, tickCmd())
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -118,28 +141,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case packetMsg:
 		if !m.paused {
 			p := capture.PacketInfo(msg)
-			m.packets = append(m.packets, p)
-			m.stats.Update(p)
+
+			// Convert to DisplayPacket and add to store
+			dp := uiadapter.ConvertFromPacketInfo(&p)
+			m.store.Add(dp)
+
+			// Update stats
+			m.stats.UpdateFromPacketInfo(p)
 
 			// Run expert analysis
 			if m.expertAnalyzer != nil {
 				m.expertAnalyzer.Analyze(&p)
 			}
 
-			// Add packet to AI agent context
-			if m.aiAgent != nil {
-				m.aiAgent.AddPacket(p)
-			}
-
-			// Update filtered packets
-			if m.filter != "" && matchFilter(p, m.filter) {
-				m.filteredPkts = append(m.filteredPkts, p)
-			}
-
 			// Auto-scroll to new packet in list view
 			if m.viewMode == ViewList && m.isLive {
-				packets := m.getDisplayPackets()
-				m.selectedIdx = len(packets) - 1
+				m.selectedIdx = m.getPacketCount() - 1
 			}
 		}
 		return m, waitForPacket(m.packetChan)
@@ -186,8 +203,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Check if the response contains a confirmation request
 			if strings.Contains(m.aiStreamContent, "[CONFIRMATION_REQUIRED]") {
-				if m.aiAgent != nil && m.aiAgent.HasPendingConfirmation() {
-					m.pendingConfirmation = m.aiAgent.GetPendingConfirmation()
+				if m.aiAssistant != nil && m.aiAssistant.HasPendingConfirmation() {
+					m.pendingConfirmation = m.aiAssistant.GetPendingConfirmation()
 					m.showConfirmDialog = true
 				}
 			}
@@ -199,28 +216,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle different stream event types
 		switch msg.event.Type {
-		case llm.StreamEventDelta:
-			// Check if this event requires user confirmation (from react agent)
-			if msg.event.NeedsConfirmation {
-				// Stop processing stream - need user confirmation first
-				m.aiProcessing = false
-				m.aiStreamChan = nil
-
-				// Update message content with confirmation request
-				if m.aiStreamingMsgID >= 0 && m.aiStreamingMsgID < len(m.chatMessages) {
-					m.chatMessages[m.aiStreamingMsgID].Content = m.aiStreamContent + "\n\n⚠️ 需要授权确认..."
-				}
-				m.aiStreamingMsgID = -1
-				m.aiStreamContent = ""
-
-				// Show confirmation dialog
-				if m.aiAgent != nil && m.aiAgent.HasPendingConfirmation() {
-					m.pendingConfirmation = m.aiAgent.GetPendingConfirmation()
-					m.showConfirmDialog = true
-				}
-				return m, nil
-			}
-
+		case "delta":
 			// Append delta to current streaming content
 			m.aiStreamContent += msg.event.Delta
 			// Update the message being streamed
@@ -229,17 +225,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.chatScroll = len(m.chatMessages) * 10
 
-		case llm.StreamEventToolStart:
+		case "tool_start":
 			// Show tool execution indicator
-			if msg.event.ToolCall != nil {
-				toolInfo := fmt.Sprintf("\n🔧 [执行工具: %s]", msg.event.ToolCall.Name)
+			if msg.event.ToolName != "" {
+				toolInfo := fmt.Sprintf("\n🔧 [执行工具: %s]", msg.event.ToolName)
 				m.aiStreamContent += toolInfo
 				if m.aiStreamingMsgID >= 0 && m.aiStreamingMsgID < len(m.chatMessages) {
 					m.chatMessages[m.aiStreamingMsgID].Content = m.aiStreamContent + "▌"
 				}
 			}
 
-		case llm.StreamEventError:
+		case "error":
 			m.aiProcessing = false
 			m.aiStreamChan = nil
 			errMsg := "Stream error"
@@ -254,7 +250,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.aiStreamContent = ""
 			return m, nil
 
-		case llm.StreamEventEnd:
+		case "end":
 			// Will be handled by done=true
 		}
 
@@ -288,10 +284,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y":
 				// Grant authorization for this session
-				if m.aiAgent != nil {
-					m.aiAgent.GrantAuthorization(true)
+				if m.aiAssistant != nil {
+					m.aiAssistant.GrantAuthorization(true)
 					// Retry the tool call
-					result, err := m.aiAgent.RetryLastToolCall()
+					result, err := m.aiAssistant.RetryLastToolCall()
 					if err != nil {
 						m.AddChatMessage("system", "重试失败: "+err.Error(), true)
 					} else {
@@ -304,8 +300,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			case "n", "N", "esc":
 				// Deny authorization
-				if m.aiAgent != nil {
-					m.aiAgent.DenyAuthorization()
+				if m.aiAssistant != nil {
+					m.aiAssistant.DenyAuthorization()
 				}
 				m.AddChatMessage("system", "❌ 用户拒绝了显示原始数据的请求", false)
 				m.showConfirmDialog = false
@@ -321,7 +317,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "enter":
 				input := m.chatTextInput.Value()
-				if input != "" && m.aiAgent != nil && !m.aiProcessing {
+				if input != "" && m.aiAssistant != nil && !m.aiProcessing {
 					m.AddChatMessage("user", input, false)
 					userMsg := input
 					m.chatTextInput.SetValue("")
@@ -329,7 +325,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.chatInputActive = false
 					m.chatTextInput.Blur()
 					// Use streaming API
-					return m, sendAIMessageStream(m.aiAgent, userMsg)
+					return m, sendAIMessageStream(m.aiAssistant, userMsg)
 				}
 				return m, nil
 			case "esc":
@@ -378,6 +374,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			if m.capturer != nil {
 				m.capturer.Stop()
+			}
+			if m.store != nil {
+				m.store.Close()
 			}
 			return m, tea.Quit
 
@@ -450,8 +449,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			switch m.viewMode {
 			case ViewList:
-				packets := m.getDisplayPackets()
-				if m.selectedIdx < len(packets)-1 {
+				count := m.getPacketCount()
+				if m.selectedIdx < count-1 {
 					m.selectedIdx++
 				}
 			case ViewDetail:
@@ -515,10 +514,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "pgdown":
 			switch m.viewMode {
 			case ViewList:
-				packets := m.getDisplayPackets()
+				count := m.getPacketCount()
 				m.selectedIdx += 20
-				if m.selectedIdx >= len(packets) {
-					m.selectedIdx = len(packets) - 1
+				if m.selectedIdx >= count {
+					m.selectedIdx = count - 1
 				}
 				if m.selectedIdx < 0 {
 					m.selectedIdx = 0
@@ -569,8 +568,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end", "G":
 			switch m.viewMode {
 			case ViewList:
-				packets := m.getDisplayPackets()
-				m.selectedIdx = len(packets) - 1
+				count := m.getPacketCount()
+				m.selectedIdx = count - 1
 				if m.selectedIdx < 0 {
 					m.selectedIdx = 0
 				}
@@ -666,14 +665,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "w":
 			// Save packets to file
-			packetsToSave := m.packets
-			if len(m.filteredPkts) > 0 && m.filter != "" {
-				packetsToSave = m.filteredPkts
-			}
-			if len(packetsToSave) > 0 {
+			if m.store != nil && m.store.Count() > 0 {
 				m.statusMessage = "Saving..."
 				m.statusIsError = false
-				return m, savePacketsCmd(packetsToSave)
+				return m, savePacketsCmd(m.store)
 			} else {
 				m.statusMessage = "No packets to save"
 				m.statusIsError = true
@@ -743,42 +738,9 @@ func (m Model) handleHelpInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) applyFilter() {
-	m.filteredPkts = make([]capture.PacketInfo, 0)
-	for _, p := range m.packets {
-		if matchFilter(p, m.filter) {
-			m.filteredPkts = append(m.filteredPkts, p)
-		}
+	if m.store != nil {
+		m.store.SetFilter(m.filter)
 	}
-}
-
-func matchFilter(p capture.PacketInfo, filter string) bool {
-	if filter == "" {
-		return true
-	}
-	filter = strings.ToLower(filter)
-
-	// Check protocol
-	if strings.ToLower(p.Protocol) == filter {
-		return true
-	}
-
-	// Check IP addresses
-	if strings.Contains(strings.ToLower(p.SrcIP), filter) ||
-		strings.Contains(strings.ToLower(p.DstIP), filter) {
-		return true
-	}
-
-	// Check ports
-	if p.SrcPort == filter || p.DstPort == filter {
-		return true
-	}
-
-	// Check info
-	if strings.Contains(strings.ToLower(p.Info), filter) {
-		return true
-	}
-
-	return false
 }
 
 func (m Model) View() string {
@@ -851,27 +813,40 @@ func (m Model) View() string {
 	return sb.String()
 }
 
-// Run starts the TUI application
-func Run(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) error {
-	model := NewModel(packetChan, capturer, isLive)
+// Run starts the TUI application with a PacketStore
+func Run(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) error {
+	model := NewModel(store, packetChan, capturer, isLive)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	_, err := p.Run()
 	return err
 }
 
-// RunWithAI starts the TUI application with AI agent
-func RunWithAI(packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool, aiAgent *agent.Agent) error {
-	model := NewModel(packetChan, capturer, isLive)
-	model.SetAIAgent(aiAgent)
+// RunWithAI starts the TUI application with AI assistant
+func RunWithAI(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool, ai uiadapter.AIAssistant) error {
+	model := NewModel(store, packetChan, capturer, isLive)
+	model.SetAIAssistant(ai)
 
 	// Add welcome message
-	if aiAgent != nil {
+	if ai != nil {
 		model.AddChatMessage("assistant", "你好！我是 AI 网络分析助手。我可以帮你：\n• 分析捕获的数据包\n• 解释网络协议\n• 统计流量信息\n• 检测异常模式\n\n按 'a' 切换到聊天视图，按 'i' 开始输入。", false)
 	}
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
+	_, err := p.Run()
+	return err
+}
+
+// RunWithStore starts the TUI application with just a PacketStore (for indexed mode)
+func RunWithStore(store uiadapter.PacketStore, ai uiadapter.AIAssistant) error {
+	model := NewModelWithStore(store)
+	if ai != nil {
+		model.SetAIAssistant(ai)
+		model.AddChatMessage("assistant", "你好！我是 AI 网络分析助手。我可以帮你：\n• 分析捕获的数据包\n• 解释网络协议\n• 统计流量信息\n• 检测异常模式\n\n按 'a' 切换到聊天视图，按 'i' 开始输入。", false)
+	}
+
+	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }

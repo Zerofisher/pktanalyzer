@@ -3,6 +3,7 @@ package tls
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"encoding/binary"
 	"fmt"
 	"sync"
@@ -259,14 +260,36 @@ func (d *Decryptor) decryptCBC(session *Session, ciphertext []byte, isFromClient
 	}
 	plaintext = plaintext[:len(plaintext)-padLen]
 
-	// Remove MAC
+	// Split plaintext into data and MAC
 	if len(plaintext) < info.MACLen {
 		return nil, fmt.Errorf("plaintext too short for MAC")
 	}
-	plaintext = plaintext[:len(plaintext)-info.MACLen]
+	macStart := len(plaintext) - info.MACLen
+	recordMAC := plaintext[macStart:]
+	plaintext = plaintext[:macStart]
 
-	// MAC key is used but verification is skipped for simplicity
-	_ = macKey
+	// Verify MAC: HMAC(mac_key, seq_num || type || version || length || plaintext)
+	var seqNum uint64
+	if isFromClient {
+		seqNum = session.ClientSeqNum
+	} else {
+		seqNum = session.ServerSeqNum
+	}
+
+	macInput := make([]byte, 8+1+2+2+len(plaintext))
+	binary.BigEndian.PutUint64(macInput[:8], seqNum)
+	macInput[8] = ContentTypeApplicationData
+	binary.BigEndian.PutUint16(macInput[9:11], session.Version)
+	binary.BigEndian.PutUint16(macInput[11:13], uint16(len(plaintext)))
+	copy(macInput[13:], plaintext)
+
+	h := hmac.New(info.HashFunc, macKey)
+	h.Write(macInput)
+	expectedMAC := h.Sum(nil)[:info.MACLen]
+
+	if !hmac.Equal(recordMAC, expectedMAC) {
+		return nil, fmt.Errorf("CBC MAC verification failed")
+	}
 
 	return plaintext, nil
 }

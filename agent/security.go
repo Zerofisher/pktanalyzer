@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Security limits - prevent token explosion and DoS
@@ -311,6 +312,7 @@ func NewConfirmationRequest(authType AuthorizationType, toolName string, ctx map
 
 // AuthorizationStore manages pending authorizations with session-based grants
 type AuthorizationStore struct {
+	mu             sync.RWMutex
 	pendingRequest *ConfirmationRequest       // Current pending request
 	sessionGrants  map[AuthorizationType]bool // Grants for this session
 }
@@ -324,6 +326,9 @@ func NewAuthorizationStore() *AuthorizationStore {
 
 // RequestAuthorization creates a pending authorization request
 func (s *AuthorizationStore) RequestAuthorization(authType AuthorizationType, toolName string, ctx map[string]interface{}) *ConfirmationRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Check if already granted for this session
 	if s.sessionGrants[authType] {
 		return &ConfirmationRequest{
@@ -339,11 +344,16 @@ func (s *AuthorizationStore) RequestAuthorization(authType AuthorizationType, to
 
 // GetPendingRequest returns the current pending request (nil if none)
 func (s *AuthorizationStore) GetPendingRequest() *ConfirmationRequest {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.pendingRequest
 }
 
 // GrantAuthorization grants the pending authorization
 func (s *AuthorizationStore) GrantAuthorization(forSession bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.pendingRequest != nil {
 		s.pendingRequest.Granted = true
 		s.pendingRequest.Responded = true
@@ -358,11 +368,16 @@ func (s *AuthorizationStore) GrantAuthorization(forSession bool) {
 // GrantSessionAuthorization directly grants session-wide authorization for a type
 // Used for pre-authorizing before any request is made
 func (s *AuthorizationStore) GrantSessionAuthorization(authType AuthorizationType) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.sessionGrants[authType] = true
 }
 
 // DenyAuthorization denies the pending authorization
 func (s *AuthorizationStore) DenyAuthorization() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.pendingRequest != nil {
 		s.pendingRequest.Granted = false
 		s.pendingRequest.Responded = true
@@ -371,16 +386,22 @@ func (s *AuthorizationStore) DenyAuthorization() {
 
 // ClearPendingRequest clears the pending request after handling
 func (s *AuthorizationStore) ClearPendingRequest() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.pendingRequest = nil
 }
 
 // IsAuthorized checks if an authorization type is granted (session-wide)
 func (s *AuthorizationStore) IsAuthorized(authType AuthorizationType) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.sessionGrants[authType]
 }
 
 // ClearSessionGrants clears all session grants (e.g., on conversation reset)
 func (s *AuthorizationStore) ClearSessionGrants() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.sessionGrants = make(map[AuthorizationType]bool)
 }
 

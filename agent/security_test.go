@@ -2,6 +2,7 @@ package agent
 
 import (
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -449,4 +450,53 @@ func TestAuthorizationDeny(t *testing.T) {
 	if store.IsAuthorized(AuthTypeRawData) {
 		t.Error("After deny, session should not be authorized")
 	}
+}
+
+// TestAuthorizationStoreConcurrency reproduces the data race between
+// the TUI goroutine (reading/granting) and the agent goroutine (requesting).
+// Run with: go test -race -run TestAuthorizationStoreConcurrency ./agent/
+func TestAuthorizationStoreConcurrency(t *testing.T) {
+	store := NewAuthorizationStore()
+	ctx := map[string]interface{}{"packet_number": 1}
+
+	var wg sync.WaitGroup
+	const iterations = 1000
+
+	// Goroutine A: simulates agent tool execution requesting authorization
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			store.RequestAuthorization(AuthTypeRawData, "analyze_packet", ctx)
+			store.ClearPendingRequest()
+		}
+	}()
+
+	// Goroutine B: simulates TUI checking and granting authorization
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			req := store.GetPendingRequest()
+			if req != nil && !req.Responded {
+				store.GrantAuthorization(true)
+			}
+			store.IsAuthorized(AuthTypeRawData)
+		}
+	}()
+
+	// Goroutine C: simulates concurrent session grant checks
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			store.GrantSessionAuthorization(AuthTypeRawData)
+			store.IsAuthorized(AuthTypeRawData)
+			if i%100 == 0 {
+				store.ClearSessionGrants()
+			}
+		}
+	}()
+
+	wg.Wait()
 }

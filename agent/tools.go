@@ -15,7 +15,6 @@ import (
 
 // ToolExecutor handles tool execution with security constraints
 type ToolExecutor struct {
-	capturer     *capture.Capturer
 	packetReader uiadapter.PacketReadStore // Shared packet data source
 
 	// Security configuration
@@ -96,11 +95,6 @@ func (t *ToolExecutor) GetPendingConfirmation() *ConfirmationRequest {
 func (t *ToolExecutor) HasPendingConfirmation() bool {
 	req := t.authStore.GetPendingRequest()
 	return req != nil && !req.Responded
-}
-
-// SetCapturer sets the packet capturer
-func (t *ToolExecutor) SetCapturer(c *capture.Capturer) {
-	t.capturer = c
 }
 
 // GetPackets returns all captured packets from the shared data source.

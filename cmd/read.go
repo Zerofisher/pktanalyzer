@@ -172,7 +172,6 @@ func runRead(cmd *cobra.Command, args []string) error {
 	var ai uiadapter.AIAssistant
 	if readEnableAI {
 		ai = app.SetupAI(app.AIConfig{
-			Capturer:     capturer,
 			PacketReader: store,
 		})
 	}

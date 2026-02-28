@@ -159,12 +159,6 @@ func (s *IndexedStore) GetPacketForAgent(number int) *capture.PacketInfo {
 }
 
 
-// --- Write operations ---
-
-func (s *IndexedStore) Add(pkt *DisplayPacket) {
-	// IndexedStore is read-only; data comes from indexing
-}
-
 // --- Filtering ---
 
 func (s *IndexedStore) SetFilter(expr string) error {

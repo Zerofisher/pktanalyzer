@@ -32,7 +32,7 @@ type ChatMessage struct {
 // Model holds the application state
 type Model struct {
 	// PacketStore is the unified data source for packets
-	store uiadapter.PacketStore
+	store uiadapter.PacketReadStore
 
 	// View state
 	selectedIdx  int
@@ -196,7 +196,7 @@ func containsColon(s string) bool {
 
 // NewModel creates a new model for live capture mode.
 // The store should be a MemoryStore that will receive packets.
-func NewModel(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) Model {
+func NewModel(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) Model {
 	// Initialize chat text input
 	chatTi := textinput.New()
 	chatTi.Placeholder = "输入消息..."
@@ -225,7 +225,7 @@ func NewModel(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo,
 }
 
 // NewModelWithStore creates a new model from a PacketStore (for indexed mode).
-func NewModelWithStore(store uiadapter.PacketStore) Model {
+func NewModelWithStore(store uiadapter.PacketReadStore) Model {
 	// Initialize chat text input
 	chatTi := textinput.New()
 	chatTi.Placeholder = "输入消息..."
@@ -299,9 +299,17 @@ func (m *Model) AnalyzePacket(pkt *capture.PacketInfo) {
 	}
 }
 
-// GetStore returns the underlying PacketStore
-func (m *Model) GetStore() uiadapter.PacketStore {
+// GetStore returns the underlying PacketReadStore
+func (m *Model) GetStore() uiadapter.PacketReadStore {
 	return m.store
+}
+
+// filterStore returns the PacketFilterStore if the store supports filtering.
+func (m *Model) filterStore() uiadapter.PacketFilterStore {
+	if fs, ok := m.store.(uiadapter.PacketFilterStore); ok {
+		return fs
+	}
+	return nil
 }
 
 // getDisplayPackets returns packets for display, respecting filter.
@@ -312,8 +320,8 @@ func (m *Model) getDisplayPackets() []*uiadapter.DisplayPacket {
 
 	// For now, get a reasonable window of packets
 	// In the future, this should be paginated based on scroll position
-	if m.store.IsFiltered() {
-		return m.store.GetFilteredRange(0, m.store.FilteredCount())
+	if fs := m.filterStore(); fs != nil && fs.IsFiltered() {
+		return fs.GetFilteredRange(0, fs.FilteredCount())
 	}
 	return m.store.GetRange(0, m.store.Count())
 }
@@ -324,8 +332,8 @@ func (m *Model) getDisplayPacketsRange(offset, limit int) []*uiadapter.DisplayPa
 		return nil
 	}
 
-	if m.store.IsFiltered() {
-		return m.store.GetFilteredRange(offset, limit)
+	if fs := m.filterStore(); fs != nil && fs.IsFiltered() {
+		return fs.GetFilteredRange(offset, limit)
 	}
 	return m.store.GetRange(offset, limit)
 }
@@ -335,8 +343,8 @@ func (m *Model) getPacketCount() int {
 	if m.store == nil {
 		return 0
 	}
-	if m.store.IsFiltered() {
-		return m.store.FilteredCount()
+	if fs := m.filterStore(); fs != nil && fs.IsFiltered() {
+		return fs.FilteredCount()
 	}
 	return m.store.Count()
 }

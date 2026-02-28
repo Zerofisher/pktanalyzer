@@ -76,7 +76,7 @@ func waitForNextStreamEvent(eventChan <-chan uiadapter.StreamEvent) tea.Cmd {
 }
 
 // savePacketsCmd saves packets to a file asynchronously
-func savePacketsCmd(store uiadapter.PacketStore) tea.Cmd {
+func savePacketsCmd(store uiadapter.PacketReadStore) tea.Cmd {
 	return func() tea.Msg {
 		count := store.Count()
 		if count == 0 {
@@ -144,7 +144,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Convert to DisplayPacket and add to store
 			dp := uiadapter.ConvertFromPacketInfo(&p)
-			m.store.Add(dp)
+			if as, ok := m.store.(uiadapter.PacketAppendStore); ok {
+				as.Add(dp)
+			}
 
 			// Update stats
 			m.stats.UpdateFromPacketInfo(p)
@@ -738,8 +740,8 @@ func (m Model) handleHelpInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) applyFilter() {
-	if m.store != nil {
-		m.store.SetFilter(m.filter)
+	if fs, ok := m.store.(uiadapter.PacketFilterStore); ok {
+		fs.SetFilter(m.filter)
 	}
 }
 
@@ -813,8 +815,8 @@ func (m Model) View() string {
 	return sb.String()
 }
 
-// Run starts the TUI application with a PacketStore
-func Run(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) error {
+// Run starts the TUI application with a PacketReadStore
+func Run(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) error {
 	model := NewModel(store, packetChan, capturer, isLive)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
@@ -823,7 +825,7 @@ func Run(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capt
 }
 
 // RunWithAI starts the TUI application with AI assistant
-func RunWithAI(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool, ai uiadapter.AIAssistant) error {
+func RunWithAI(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool, ai uiadapter.AIAssistant) error {
 	model := NewModel(store, packetChan, capturer, isLive)
 	model.SetAIAssistant(ai)
 
@@ -838,8 +840,8 @@ func RunWithAI(store uiadapter.PacketStore, packetChan <-chan capture.PacketInfo
 	return err
 }
 
-// RunWithStore starts the TUI application with just a PacketStore (for indexed mode)
-func RunWithStore(store uiadapter.PacketStore, ai uiadapter.AIAssistant) error {
+// RunWithStore starts the TUI application with just a PacketReadStore (for indexed mode)
+func RunWithStore(store uiadapter.PacketReadStore, ai uiadapter.AIAssistant) error {
 	model := NewModelWithStore(store)
 	if ai != nil {
 		model.SetAIAssistant(ai)

@@ -10,41 +10,7 @@ import (
 
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/pkg/model"
-	"github.com/Zerofisher/pktanalyzer/pkg/query"
 )
-
-// DataProvider provides unified data access for TUI.
-// It abstracts the difference between indexed mode and live mode.
-type DataProvider interface {
-	// Mode
-	IsLive() bool
-	IsIndexed() bool
-
-	// Packets - 分页查询
-	GetPacketCount() int
-	GetPackets(offset, limit int) ([]*DisplayPacket, error)
-	GetPacket(number int) (*DisplayPacket, error)
-	GetRawPacket(number int) ([]byte, error)
-
-	// Flows
-	GetFlowCount() int
-	GetFlows(offset, limit int) ([]*model.Flow, error)
-	GetFlow(id string) (*model.Flow, error)
-
-	// Expert Events
-	GetExpertEvents(minSeverity int) ([]*model.ExpertEvent, error)
-	GetExpertEventCount() int
-
-	// Statistics
-	GetStats() *Stats
-	GetOverview() (*query.Overview, error)
-
-	// For live mode: receive packets
-	ReceivePacket() <-chan *DisplayPacket
-
-	// Lifecycle
-	Close() error
-}
 
 // StreamEvent represents an AI streaming event.
 // This mirrors agent.StreamEvent without importing it directly.

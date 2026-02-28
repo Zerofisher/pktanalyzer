@@ -105,7 +105,7 @@ func (s *IndexedStore) GetPacketsForAgent(offset, limit int) []capture.PacketInf
 
 	result := make([]capture.PacketInfo, len(packets))
 	for i, p := range packets {
-		result[i] = convertDisplayPacketToPacketInfo(p)
+		result[i] = ConvertToPacketInfo(p)
 	}
 	return result
 }
@@ -116,49 +116,10 @@ func (s *IndexedStore) GetPacketForAgent(number int) *capture.PacketInfo {
 	if p == nil {
 		return nil
 	}
-	pkt := convertDisplayPacketToPacketInfo(p)
+	pkt := ConvertToPacketInfo(p)
 	return &pkt
 }
 
-// convertDisplayPacketToPacketInfo converts DisplayPacket to capture.PacketInfo.
-func convertDisplayPacketToPacketInfo(p *DisplayPacket) capture.PacketInfo {
-	// If we have the original RawPacketInfo, return it directly
-	if p.RawPacketInfo != nil {
-		return *p.RawPacketInfo
-	}
-
-	// Reconstruct from DisplayPacket fields
-	pkt := capture.PacketInfo{
-		Number:    p.Number,
-		Timestamp: p.Timestamp,
-		Length:    p.Length,
-		SrcMAC:    p.SrcMAC,
-		DstMAC:    p.DstMAC,
-		SrcIP:     p.SrcIP,
-		DstIP:     p.DstIP,
-		SrcPort:   p.SrcPort,
-		DstPort:   p.DstPort,
-		Protocol:  p.Protocol,
-		Info:      p.Info,
-		SNI:       p.SNI,
-		Decrypted: p.Decrypted,
-		TCPFlags:  p.TCPFlags,
-		TCPSeq:    p.TCPSeq,
-		TCPAck:    p.TCPAck,
-		TCPWindow: p.TCPWindow,
-		StreamKey: p.FlowID,
-	}
-
-	// Convert layers
-	for _, l := range p.Layers {
-		pkt.Layers = append(pkt.Layers, capture.LayerInfo{
-			Name:    l.Name,
-			Details: l.Details,
-		})
-	}
-
-	return pkt
-}
 
 // --- Write operations ---
 

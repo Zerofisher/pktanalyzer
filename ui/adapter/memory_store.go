@@ -136,7 +136,7 @@ func (s *MemoryStore) GetPacketsForAgent(offset, limit int) []capture.PacketInfo
 
 	result := make([]capture.PacketInfo, 0, end-offset)
 	for _, p := range s.packets[offset:end] {
-		result = append(result, convertToPacketInfo(p))
+		result = append(result, ConvertToPacketInfo(p))
 	}
 	return result
 }
@@ -148,15 +148,15 @@ func (s *MemoryStore) GetPacketForAgent(number int) *capture.PacketInfo {
 
 	for _, p := range s.packets {
 		if p.Number == number {
-			pkt := convertToPacketInfo(p)
+			pkt := ConvertToPacketInfo(p)
 			return &pkt
 		}
 	}
 	return nil
 }
 
-// convertToPacketInfo converts DisplayPacket to capture.PacketInfo.
-func convertToPacketInfo(p *DisplayPacket) capture.PacketInfo {
+// ConvertToPacketInfo converts DisplayPacket to capture.PacketInfo.
+func ConvertToPacketInfo(p *DisplayPacket) capture.PacketInfo {
 	// If we have the original RawPacketInfo, return it directly
 	if p.RawPacketInfo != nil {
 		return *p.RawPacketInfo

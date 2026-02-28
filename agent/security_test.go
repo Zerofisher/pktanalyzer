@@ -130,6 +130,26 @@ func TestRedactIP(t *testing.T) {
 			"",
 			func(r string) bool { return r == "" },
 		},
+		{
+			"172 below private range (public)",
+			"172.15.255.255",
+			func(r string) bool { return strings.HasPrefix(r, "IP[") },
+		},
+		{
+			"172.16 lower boundary (private)",
+			"172.16.0.1",
+			func(r string) bool { return strings.HasPrefix(r, "172.16.x.x") },
+		},
+		{
+			"172.31 upper boundary (private)",
+			"172.31.255.254",
+			func(r string) bool { return strings.HasPrefix(r, "172.31.x.x") },
+		},
+		{
+			"172.32 above private range (public)",
+			"172.32.0.1",
+			func(r string) bool { return strings.HasPrefix(r, "IP[") },
+		},
 	}
 
 	for _, tt := range tests {

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 	"sync"
@@ -106,6 +107,12 @@ func hashShort(s string) string {
 	return hex.EncodeToString(h[:])[:8]
 }
 
+// rfc1918_172 is the 172.16.0.0/12 private range (172.16.x.x – 172.31.x.x).
+var rfc1918_172 = func() *net.IPNet {
+	_, cidr, _ := net.ParseCIDR("172.16.0.0/12")
+	return cidr
+}()
+
 // RedactIP replaces IP with hash-based pseudonym
 func RedactIP(ip string) string {
 	if ip == "" {
@@ -113,7 +120,7 @@ func RedactIP(ip string) string {
 	}
 	// Keep localhost/private network indicators
 	if strings.HasPrefix(ip, "127.") || strings.HasPrefix(ip, "192.168.") ||
-		strings.HasPrefix(ip, "10.") || strings.HasPrefix(ip, "172.") {
+		strings.HasPrefix(ip, "10.") || isPrivate172(ip) {
 		// Keep first octet(s) for context, hash the rest
 		parts := strings.Split(ip, ".")
 		if len(parts) == 4 {
@@ -121,6 +128,15 @@ func RedactIP(ip string) string {
 		}
 	}
 	return fmt.Sprintf("IP[%s]", hashShort(ip))
+}
+
+// isPrivate172 checks if an IP is in the 172.16.0.0/12 private range.
+func isPrivate172(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	return rfc1918_172.Contains(parsed)
 }
 
 // RedactMAC replaces MAC address with hash-based pseudonym

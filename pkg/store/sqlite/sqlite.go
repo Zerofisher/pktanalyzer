@@ -461,18 +461,19 @@ func (s *SQLiteStore) UpsertFlow(f *model.Flow) error {
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(id) DO UPDATE SET
 		state = excluded.state,
-		end_ns = excluded.end_ns,
-		packets = excluded.packets,
-		bytes = excluded.bytes,
-		fwd_packets = excluded.fwd_packets,
-		fwd_bytes = excluded.fwd_bytes,
-		bwd_packets = excluded.bwd_packets,
-		bwd_bytes = excluded.bwd_bytes,
-		retrans = excluded.retrans,
+		start_ns = MIN(flows.start_ns, excluded.start_ns),
+		end_ns = MAX(flows.end_ns, excluded.end_ns),
+		packets = flows.packets + excluded.packets,
+		bytes = flows.bytes + excluded.bytes,
+		fwd_packets = flows.fwd_packets + excluded.fwd_packets,
+		fwd_bytes = flows.fwd_bytes + excluded.fwd_bytes,
+		bwd_packets = flows.bwd_packets + excluded.bwd_packets,
+		bwd_bytes = flows.bwd_bytes + excluded.bwd_bytes,
+		retrans = flows.retrans + excluded.retrans,
 		rtt_samples = excluded.rtt_samples,
 		rtt_avg_us = excluded.rtt_avg_us,
-		rtt_min_us = excluded.rtt_min_us,
-		rtt_max_us = excluded.rtt_max_us,
+		rtt_min_us = CASE WHEN excluded.rtt_min_us > 0 AND (flows.rtt_min_us = 0 OR excluded.rtt_min_us < flows.rtt_min_us) THEN excluded.rtt_min_us ELSE flows.rtt_min_us END,
+		rtt_max_us = MAX(flows.rtt_max_us, excluded.rtt_max_us),
 		metadata = excluded.metadata`
 	
 	stmt, err := s.getStmt("upsert_flow", query)

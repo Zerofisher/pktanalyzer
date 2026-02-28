@@ -156,16 +156,8 @@ func preprocessFilter(filter string) string {
 	filter = strings.Join(words, "")
 
 	// Handle "tcp.port == X" style - check both src and dst
-	filter = strings.ReplaceAll(filter, "tcp.port ==", "(tcp.srcport == uint16(")
-	filter = strings.ReplaceAll(filter, "udp.port ==", "(udp.srcport == uint16(")
-
-	// Fix the closing for port comparisons
-	if strings.Contains(filter, "(tcp.srcport == uint16(") {
-		filter = fixPortComparison(filter, "tcp")
-	}
-	if strings.Contains(filter, "(udp.srcport == uint16(") {
-		filter = fixPortComparison(filter, "udp")
-	}
+	filter = expandPortFilter(filter, "tcp")
+	filter = expandPortFilter(filter, "udp")
 
 	// Handle "in {x, y, z}" syntax - convert to "in [x, y, z]"
 	filter = strings.ReplaceAll(filter, "{", "[")
@@ -220,31 +212,39 @@ func tokenizeFilter(filter string) []string {
 	return tokens
 }
 
-func fixPortComparison(filter string, proto string) string {
-	// This is a simplified fix - a proper implementation would parse the expression
-	// For now, we'll just handle simple cases like "tcp.port == 80"
-	prefix := fmt.Sprintf("(%s.srcport == uint16(", proto)
-	idx := strings.Index(filter, prefix)
-	if idx == -1 {
-		return filter
-	}
+// expandPortFilter replaces "<proto>.port == <value>" with
+// "(<proto>.srcport == <value> || <proto>.dstport == <value>)".
+// It handles multiple occurrences in the same filter string.
+func expandPortFilter(filter string, proto string) string {
+	needle := proto + ".port =="
+	for {
+		idx := strings.Index(filter, needle)
+		if idx == -1 {
+			return filter
+		}
 
-	// Find the value after the prefix
-	start := idx + len(prefix)
-	end := start
-	for end < len(filter) && (filter[end] >= '0' && filter[end] <= '9') {
-		end++
-	}
+		// Find the value after "proto.port == "
+		afterEq := idx + len(needle)
+		// Skip whitespace
+		valStart := afterEq
+		for valStart < len(filter) && filter[valStart] == ' ' {
+			valStart++
+		}
+		// Read digits
+		valEnd := valStart
+		for valEnd < len(filter) && filter[valEnd] >= '0' && filter[valEnd] <= '9' {
+			valEnd++
+		}
 
-	if end > start {
-		value := filter[start:end]
-		// Replace with proper OR expression
-		oldExpr := prefix + value
-		newExpr := fmt.Sprintf("(%s.srcport == %s or %s.dstport == %s", proto, value, proto, value)
-		filter = strings.Replace(filter, oldExpr, newExpr, 1)
-	}
+		if valEnd <= valStart {
+			// No numeric value found; leave as-is to avoid infinite loop
+			return filter
+		}
 
-	return filter
+		value := filter[valStart:valEnd]
+		replacement := fmt.Sprintf("(%s.srcport == %s || %s.dstport == %s)", proto, value, proto, value)
+		filter = filter[:idx] + replacement + filter[valEnd:]
+	}
 }
 
 // packetToEnv converts a PacketInfo to a PacketEnv for expression evaluation

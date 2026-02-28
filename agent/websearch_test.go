@@ -549,7 +549,7 @@ Final notes.
 
 	// Note: can't directly test ReadRFC since it uses hardcoded URL
 	// But we can test the internal functions it relies on
-	client := NewWebSearchClient()
+	client := NewTestWebSearchClient()
 
 	// Test fetchTextContent with mock server
 	ctx := context.Background()
@@ -592,7 +592,7 @@ func TestFetchURLWithMockServer(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := NewWebSearchClient()
+			client := NewTestWebSearchClient()
 			ctx := context.Background()
 			result, err := client.FetchURL(ctx, server.URL, DefaultContentChars)
 			if err != nil {

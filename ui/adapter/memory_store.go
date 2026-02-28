@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/pkg/model"
 	"github.com/Zerofisher/pktanalyzer/pkg/query"
 )
 
@@ -269,16 +268,7 @@ func (s *MemoryStore) GetFilteredRange(offset, limit int) []*DisplayPacket {
 	return s.GetRange(offset, limit)
 }
 
-// --- Flow and statistics ---
-
-func (s *MemoryStore) GetFlows(offset, limit int) ([]*model.Flow, error) {
-	// MemoryStore doesn't track flows
-	return nil, nil
-}
-
-func (s *MemoryStore) FlowCount() int {
-	return 0
-}
+// --- Statistics ---
 
 func (s *MemoryStore) GetOverview() (*query.Overview, error) {
 	s.mu.RLock()
@@ -293,13 +283,6 @@ func (s *MemoryStore) GetOverview() (*query.Overview, error) {
 		TotalPackets: len(s.packets),
 		TotalBytes:   totalBytes,
 	}, nil
-}
-
-// --- Expert events ---
-
-func (s *MemoryStore) GetExpertEvents(minSeverity int) ([]*model.ExpertEvent, error) {
-	// MemoryStore doesn't track expert events
-	return nil, nil
 }
 
 // --- Lifecycle ---

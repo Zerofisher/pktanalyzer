@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/Zerofisher/pktanalyzer/expert"
+	"github.com/Zerofisher/pktanalyzer/internal/format"
 	"github.com/Zerofisher/pktanalyzer/stream"
 )
 
@@ -358,7 +359,7 @@ func (m Model) renderStreamList() string {
 			protocol = "-"
 		}
 
-		bytesStr := formatBytes(int64(s.TotalBytes()))
+		bytesStr := format.FormatBytes(int64(s.TotalBytes()))
 		line := fmt.Sprintf("%-4d %-24s %-24s %-6d %-10s %-10s %-10s",
 			s.ID,
 			truncateStr(s.ClientAddr, 24),
@@ -708,17 +709,6 @@ func isHTTPData(data []byte) bool {
 	return false
 }
 
-func formatBytes(bytes int64) string {
-	if bytes < 1024 {
-		return fmt.Sprintf("%d B", bytes)
-	} else if bytes < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	} else if bytes < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
-	} else {
-		return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
-	}
-}
 
 func truncateStr(s string, maxLen int) string {
 	if maxLen <= 0 {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/internal/format"
 )
 
 // PacketReader provides read-only access to packet data.
@@ -733,7 +734,7 @@ func (t *ToolExecutor) getStatistics(input map[string]interface{}) (string, erro
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("=== 流量统计 ===\n\n"))
 	sb.WriteString(fmt.Sprintf("总数据包: %d\n", len(packets)))
-	sb.WriteString(fmt.Sprintf("总数据量: %s\n", formatBytes(totalBytes)))
+	sb.WriteString(fmt.Sprintf("总数据量: %s\n", format.FormatBytes(int64(totalBytes))))
 
 	if len(packets) > 1 {
 		duration := packets[len(packets)-1].Timestamp.Sub(packets[0].Timestamp)
@@ -741,7 +742,7 @@ func (t *ToolExecutor) getStatistics(input map[string]interface{}) (string, erro
 		if duration > 0 {
 			pps := float64(len(packets)) / duration.Seconds()
 			bps := float64(totalBytes*8) / duration.Seconds()
-			sb.WriteString(fmt.Sprintf("平均速率: %.1f pps, %s/s\n", pps, formatBits(int(bps))))
+			sb.WriteString(fmt.Sprintf("平均速率: %.1f pps, %s/s\n", pps, format.FormatBits(int64(bps))))
 		}
 	}
 
@@ -1056,7 +1057,7 @@ func (t *ToolExecutor) findConnections(input map[string]interface{}) (string, er
 		// Format connection key with redaction if enabled
 		connDisplay := t.formatConnectionKey(kv.Key)
 		sb.WriteString(fmt.Sprintf("%-45s %8d %10s %s\n",
-			connDisplay, kv.Value.packets, formatBytes(kv.Value.bytes), state))
+			connDisplay, kv.Value.packets, format.FormatBytes(int64(kv.Value.bytes)), state))
 
 		// Add to evidence
 		evidence.Connections = append(evidence.Connections, kv.Key)
@@ -1414,27 +1415,6 @@ func sortMapByValue(m map[string]int) []keyValue {
 	return sorted
 }
 
-func formatBytes(bytes int) string {
-	if bytes < 1024 {
-		return fmt.Sprintf("%d B", bytes)
-	} else if bytes < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	} else if bytes < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
-	}
-	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
-}
-
-func formatBits(bits int) string {
-	if bits < 1000 {
-		return fmt.Sprintf("%d bps", bits)
-	} else if bits < 1000*1000 {
-		return fmt.Sprintf("%.1f Kbps", float64(bits)/1000)
-	} else if bits < 1000*1000*1000 {
-		return fmt.Sprintf("%.1f Mbps", float64(bits)/(1000*1000))
-	}
-	return fmt.Sprintf("%.1f Gbps", float64(bits)/(1000*1000*1000))
-}
 
 func parsePort(s string) uint16 {
 	var port uint16

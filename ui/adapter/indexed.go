@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/pkg/model"
 	"github.com/Zerofisher/pktanalyzer/pkg/query"
 	"github.com/Zerofisher/pktanalyzer/pkg/store/sqlite"
@@ -131,31 +130,6 @@ func (s *IndexedStore) GetRaw(number int) ([]byte, error) {
 	return buf, nil
 }
 
-// --- Agent interface (PacketReader) ---
-
-// GetPacketsForAgent returns packets as capture.PacketInfo for agent tools.
-func (s *IndexedStore) GetPacketsForAgent(offset, limit int) []capture.PacketInfo {
-	packets := s.GetRange(offset, limit)
-	if packets == nil {
-		return nil
-	}
-
-	result := make([]capture.PacketInfo, len(packets))
-	for i, p := range packets {
-		result[i] = ConvertToPacketInfo(p)
-	}
-	return result
-}
-
-// GetPacketForAgent returns a single packet as capture.PacketInfo for agent tools.
-func (s *IndexedStore) GetPacketForAgent(number int) *capture.PacketInfo {
-	p := s.Get(number)
-	if p == nil {
-		return nil
-	}
-	pkt := ConvertToPacketInfo(p)
-	return &pkt
-}
 
 
 // --- Filtering ---

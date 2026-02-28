@@ -2,32 +2,68 @@ package agent
 
 import (
 	"github.com/Zerofisher/pktanalyzer/capture"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 
-// MockPacketReader is a test implementation of PacketReader.
-type MockPacketReader struct {
-	packets []capture.PacketInfo
+// MockPacketReadStore is a test implementation of uiadapter.PacketReadStore.
+type MockPacketReadStore struct {
+	packets []*uiadapter.DisplayPacket
 }
 
-// NewMockPacketReader creates a new MockPacketReader.
-func NewMockPacketReader() *MockPacketReader {
-	return &MockPacketReader{
-		packets: make([]capture.PacketInfo, 0),
+// NewMockPacketReadStore creates a new MockPacketReadStore.
+func NewMockPacketReadStore() *MockPacketReadStore {
+	return &MockPacketReadStore{
+		packets: make([]*uiadapter.DisplayPacket, 0),
 	}
 }
 
-// AddPacket adds a packet to the mock reader.
-func (m *MockPacketReader) AddPacket(p capture.PacketInfo) {
-	m.packets = append(m.packets, p)
+// AddPacket adds a packet to the mock store.
+// Accepts capture.PacketInfo for test convenience and converts internally.
+func (m *MockPacketReadStore) AddPacket(p capture.PacketInfo) {
+	dp := &uiadapter.DisplayPacket{
+		Number:        p.Number,
+		Timestamp:     p.Timestamp,
+		Length:        p.Length,
+		SrcMAC:        p.SrcMAC,
+		DstMAC:        p.DstMAC,
+		SrcIP:         p.SrcIP,
+		DstIP:         p.DstIP,
+		SrcPort:       p.SrcPort,
+		DstPort:       p.DstPort,
+		Protocol:      p.Protocol,
+		Info:          p.Info,
+		SNI:           p.SNI,
+		Decrypted:     p.Decrypted,
+		TCPFlags:      p.TCPFlags,
+		TCPSeq:        p.TCPSeq,
+		TCPAck:        p.TCPAck,
+		TCPWindow:     p.TCPWindow,
+		FlowID:        p.StreamKey,
+		RawPacketInfo: &p,
+	}
+	m.packets = append(m.packets, dp)
 }
 
+func (m *MockPacketReadStore) IsLive() bool    { return false }
+func (m *MockPacketReadStore) IsIndexed() bool { return false }
+
 // Count returns the number of packets.
-func (m *MockPacketReader) Count() int {
+func (m *MockPacketReadStore) Count() int {
 	return len(m.packets)
 }
 
-// GetPacketsForAgent returns packets in the given range.
-func (m *MockPacketReader) GetPacketsForAgent(offset, limit int) []capture.PacketInfo {
+// Get returns a single packet by number (1-based).
+func (m *MockPacketReadStore) Get(number int) *uiadapter.DisplayPacket {
+	for _, p := range m.packets {
+		if p.Number == number {
+			return p
+		}
+	}
+	return nil
+}
+
+// GetRange returns packets in the given range.
+func (m *MockPacketReadStore) GetRange(offset, limit int) []*uiadapter.DisplayPacket {
 	if offset < 0 {
 		offset = 0
 	}
@@ -38,35 +74,30 @@ func (m *MockPacketReader) GetPacketsForAgent(offset, limit int) []capture.Packe
 	if end > len(m.packets) {
 		end = len(m.packets)
 	}
-	result := make([]capture.PacketInfo, end-offset)
+	result := make([]*uiadapter.DisplayPacket, end-offset)
 	copy(result, m.packets[offset:end])
 	return result
 }
 
-// GetPacketForAgent returns a single packet by number.
-func (m *MockPacketReader) GetPacketForAgent(number int) *capture.PacketInfo {
-	for i := range m.packets {
-		if m.packets[i].Number == number {
-			return &m.packets[i]
-		}
-	}
-	return nil
-}
-
 // GetRaw returns raw packet bytes.
-func (m *MockPacketReader) GetRaw(number int) ([]byte, error) {
-	for i := range m.packets {
-		if m.packets[i].Number == number {
-			return m.packets[i].RawData, nil
+func (m *MockPacketReadStore) GetRaw(number int) ([]byte, error) {
+	for _, p := range m.packets {
+		if p.Number == number && p.RawPacketInfo != nil {
+			return p.RawPacketInfo.RawData, nil
 		}
 	}
 	return nil, nil
 }
 
-// NewToolExecutorWithMock creates a ToolExecutor with a mock PacketReader for testing.
-func NewToolExecutorWithMock() (*ToolExecutor, *MockPacketReader) {
+// Close is a no-op for the mock store.
+func (m *MockPacketReadStore) Close() error {
+	return nil
+}
+
+// NewToolExecutorWithMock creates a ToolExecutor with a mock PacketReadStore for testing.
+func NewToolExecutorWithMock() (*ToolExecutor, *MockPacketReadStore) {
 	exec := NewToolExecutor()
-	mock := NewMockPacketReader()
+	mock := NewMockPacketReadStore()
 	exec.SetPacketReader(mock)
 	return exec, mock
 }

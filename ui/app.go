@@ -149,7 +149,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Update stats
-			m.stats.UpdateFromPacketInfo(p)
+			m.stats.Update(dp)
 
 			// Run expert analysis
 			if m.expertAnalyzer != nil {

@@ -195,13 +195,18 @@ func (m Model) renderHexDump() string {
 }
 
 func (m Model) renderStats() string {
+	ps := m.stats.Get()
+	total := 0
+	for _, v := range ps {
+		total += v
+	}
 	var stats string
-	if m.stats.TLS > 0 || m.stats.HTTPS > 0 {
-		stats = fmt.Sprintf("Total: %d | TCP: %d | UDP: %d | TLS: %d | HTTPS: %d (Decrypted: %d) | DNS: %d | HTTP: %d",
-			m.stats.Total, m.stats.TCP, m.stats.UDP, m.stats.TLS, m.stats.HTTPS, m.stats.Decrypted, m.stats.DNS, m.stats.HTTP)
+	if ps["TLS"] > 0 || ps["HTTPS"] > 0 {
+		stats = fmt.Sprintf("Total: %d | TCP: %d | UDP: %d | TLS: %d | HTTPS: %d | DNS: %d | HTTP: %d",
+			total, ps["TCP"], ps["UDP"], ps["TLS"], ps["HTTPS"], ps["DNS"], ps["HTTP"])
 	} else {
 		stats = fmt.Sprintf("Total: %d | TCP: %d | UDP: %d | ICMP: %d | ARP: %d | DNS: %d | HTTP: %d | Other: %d",
-			m.stats.Total, m.stats.TCP, m.stats.UDP, m.stats.ICMP, m.stats.ARP, m.stats.DNS, m.stats.HTTP, m.stats.Other)
+			total, ps["TCP"], ps["UDP"], ps["ICMP"]+ps["ICMPv6"], ps["ARP"], ps["DNS"], ps["HTTP"], ps["Other"])
 	}
 	return statusStyle.Width(m.width).Render(stats)
 }

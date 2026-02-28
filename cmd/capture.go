@@ -116,7 +116,6 @@ func runCapture(cmd *cobra.Command, args []string) error {
 	var ai uiadapter.AIAssistant
 	if captureEnableAI {
 		ai = app.SetupAI(app.AIConfig{
-			Capturer:     capturer,
 			PacketReader: store,
 		})
 	}

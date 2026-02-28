@@ -6,13 +6,11 @@ import (
 
 	"github.com/Zerofisher/pktanalyzer/agent"
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 
 // AIConfig holds AI agent configuration.
 type AIConfig struct {
-	Capturer     *capture.Capturer  // Optional: set for live/non-indexed mode
 	PacketReader uiadapter.PacketReadStore // Required: packet reader for queries
 }
 
@@ -35,9 +33,6 @@ func SetupAI(cfg AIConfig) uiadapter.AIAssistant {
 
 	fmt.Printf("AI assistant enabled (using %s). Press 'a' to chat.\n", provider)
 
-	if cfg.Capturer != nil {
-		aiAgent.SetCapturer(cfg.Capturer)
-	}
 	aiAgent.SetPacketReader(cfg.PacketReader)
 
 	return NewAgentAdapter(aiAgent)

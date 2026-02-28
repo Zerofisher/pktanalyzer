@@ -130,8 +130,6 @@ func (s *IndexedStore) GetRaw(number int) ([]byte, error) {
 	return buf, nil
 }
 
-
-
 // --- Filtering ---
 
 func (s *IndexedStore) SetFilter(expr string) error {

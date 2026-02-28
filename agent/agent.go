@@ -14,7 +14,6 @@ import (
 	"github.com/Zerofisher/pktanalyzer/agent/providers/openrouter"
 	"github.com/Zerofisher/pktanalyzer/agent/react"
 	"github.com/Zerofisher/pktanalyzer/agent/tracing"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 
@@ -64,11 +63,6 @@ func NewAgent(provider llm.Provider) (*Agent, error) {
 		llmClient:    client,
 		toolExecutor: toolExecutor,
 	}, nil
-}
-
-// SetCapturer sets the packet capturer for the agent
-func (a *Agent) SetCapturer(c *capture.Capturer) {
-	a.toolExecutor.SetCapturer(c)
 }
 
 // SetPacketReader sets the packet data source for the agent.

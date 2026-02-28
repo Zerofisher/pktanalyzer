@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/internal/format"
 )
 
 // Manager collects and reports various traffic statistics
@@ -203,9 +204,9 @@ func (m *Manager) PrintEndpoints(w io.Writer, proto string) {
 		fmt.Fprintf(w, "%-40s %10d %12s %10d %12s\n",
 			ep.Address,
 			total,
-			formatBytes(totalBytes),
+			format.FormatBytes(totalBytes),
 			ep.TxPackets,
-			formatBytes(ep.TxBytes),
+			format.FormatBytes(ep.TxBytes),
 		)
 	}
 	fmt.Fprintf(w, "================================================================================\n")
@@ -252,9 +253,9 @@ func (m *Manager) PrintConversations(w io.Writer, proto string) {
 			truncate(addrA, 22),
 			truncate(addrB, 22),
 			conv.PacketsAtoB,
-			formatBytes(conv.BytesAtoB),
+			format.FormatBytes(conv.BytesAtoB),
 			conv.PacketsBtoA,
-			formatBytes(conv.BytesBtoA),
+			format.FormatBytes(conv.BytesBtoA),
 			formatDuration(duration),
 		)
 	}
@@ -278,9 +279,9 @@ func (m *Manager) PrintIOStats(w io.Writer, interval float64) {
 		fmt.Fprintf(w, "%-20s %12d %15s %12.1f %15s\n",
 			fmt.Sprintf("%.1f - %.1f", start, end),
 			bucket.Packets,
-			formatBytes(bucket.Bytes),
+			format.FormatBytes(bucket.Bytes),
 			pps,
-			formatBits(int64(bps)),
+			format.FormatBits(int64(bps)),
 		)
 	}
 
@@ -293,9 +294,9 @@ func (m *Manager) PrintIOStats(w io.Writer, interval float64) {
 	fmt.Fprintf(w, "%-20s %12d %15s %12.1f %15s\n",
 		"Total",
 		m.totalPackets,
-		formatBytes(m.totalBytes),
+		format.FormatBytes(m.totalBytes),
 		avgPps,
-		formatBits(int64(avgBps)),
+		format.FormatBits(int64(avgBps)),
 	)
 	fmt.Fprintln(w, "================================================================================")
 }
@@ -318,31 +319,6 @@ func isUDP(proto string) bool {
 	return false
 }
 
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
-
-func formatBits(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d bps", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cbps", float64(b)/float64(div), "kMGTPE"[exp])
-}
 
 func formatDuration(d time.Duration) string {
 	if d < time.Second {

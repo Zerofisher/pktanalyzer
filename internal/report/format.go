@@ -1,17 +1,9 @@
 package report
 
-import "fmt"
+import "github.com/Zerofisher/pktanalyzer/internal/format"
 
 // FormatBytes formats bytes to a human-readable string with appropriate unit.
+// Delegates to the shared implementation in internal/format.
 func FormatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+	return format.FormatBytes(b)
 }

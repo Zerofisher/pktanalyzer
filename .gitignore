@@ -41,3 +41,4 @@ debug
 # Build output
 /build/
 /dist/
+.worktrees/

@@ -180,6 +180,10 @@ func (e *SQLiteEngine) GetFlows(ctx context.Context, filter FlowFilter) ([]*mode
 		query += " AND protocol = ?"
 		args = append(args, filter.Protocol)
 	}
+	if filter.Port > 0 {
+		query += " AND (src_port = ? OR dst_port = ?)"
+		args = append(args, filter.Port, filter.Port)
+	}
 	if filter.MinPackets > 0 {
 		query += " AND packets >= ?"
 		args = append(args, filter.MinPackets)

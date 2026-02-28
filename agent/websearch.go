@@ -4,8 +4,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -45,16 +47,110 @@ const (
 
 // WebSearchClient handles web searches for RFC and technical documentation
 type WebSearchClient struct {
-	httpClient *http.Client
+	httpClient          *http.Client
+	allowLocalAddresses bool // For testing only - bypasses SSRF checks
 }
 
-// NewWebSearchClient creates a new WebSearchClient
+// NewWebSearchClient creates a new WebSearchClient with SSRF-safe HTTP client
 func NewWebSearchClient() *WebSearchClient {
-	return &WebSearchClient{
-		httpClient: &http.Client{
-			Timeout: WebSearchTimeout * time.Second,
+	return newWebSearchClient(false)
+}
+
+// NewTestWebSearchClient creates a WebSearchClient that allows local addresses (for testing only).
+func NewTestWebSearchClient() *WebSearchClient {
+	return newWebSearchClient(true)
+}
+
+func newWebSearchClient(allowLocal bool) *WebSearchClient {
+	dialer := &net.Dialer{
+		Timeout: WebSearchTimeout * time.Second,
+	}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if !allowLocal {
+				host, port, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, fmt.Errorf("invalid address %q: %w", addr, err)
+				}
+				// Resolve and validate before connecting
+				ips, err := net.LookupHost(host)
+				if err != nil {
+					return nil, fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+				}
+				for _, ipStr := range ips {
+					if err := validateIP(ipStr); err != nil {
+						return nil, fmt.Errorf("blocked address %s (%s): %w", host, ipStr, err)
+					}
+				}
+				// Connect to the first valid resolved IP
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[0], port))
+			}
+			return dialer.DialContext(ctx, network, addr)
 		},
 	}
+
+	return &WebSearchClient{
+		httpClient: &http.Client{
+			Timeout:   WebSearchTimeout * time.Second,
+			Transport: transport,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 {
+					return errors.New("too many redirects")
+				}
+				if !allowLocal {
+					// Validate redirect target
+					if err := validateURLHost(req.URL); err != nil {
+						return fmt.Errorf("redirect blocked: %w", err)
+					}
+				}
+				return nil
+			},
+		},
+		allowLocalAddresses: allowLocal,
+	}
+}
+
+// errSSRF is returned when a URL targets a restricted address.
+var errSSRF = errors.New("SSRF: access to internal/restricted address is not allowed")
+
+// validateIP checks that an IP address is not in a restricted range.
+func validateIP(ipStr string) error {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return fmt.Errorf("invalid IP: %s", ipStr)
+	}
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return fmt.Errorf("%w: %s", errSSRF, ipStr)
+	}
+	// Block cloud metadata endpoints (169.254.169.254)
+	if ip.Equal(net.ParseIP("169.254.169.254")) {
+		return fmt.Errorf("%w: cloud metadata endpoint %s", errSSRF, ipStr)
+	}
+	return nil
+}
+
+// validateURLHost resolves and validates the host of a URL.
+func validateURLHost(u *url.URL) error {
+	host := u.Hostname()
+	if host == "" {
+		return errors.New("empty hostname")
+	}
+	// If host is already an IP, validate directly
+	if ip := net.ParseIP(host); ip != nil {
+		return validateIP(host)
+	}
+	// Resolve hostname and validate all IPs
+	ips, err := net.LookupHost(host)
+	if err != nil {
+		return fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+	}
+	for _, ipStr := range ips {
+		if err := validateIP(ipStr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RFCResult represents a single RFC search result
@@ -626,6 +722,12 @@ func (c *WebSearchClient) FetchURL(ctx context.Context, targetURL string, maxCha
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return "", fmt.Errorf("仅支持 http/https 协议")
 	}
+	// SSRF protection: validate target host before connecting
+	if !c.allowLocalAddresses {
+		if err := validateURLHost(parsedURL); err != nil {
+			return "", fmt.Errorf("URL 安全检查失败: %w", err)
+		}
+	}
 
 	// Create request with timeout
 	fetchCtx, cancel := context.WithTimeout(ctx, FetchTimeout*time.Second)
@@ -677,6 +779,17 @@ func (c *WebSearchClient) FetchURL(ctx context.Context, targetURL string, maxCha
 
 // fetchTextContent fetches plain text content from a URL
 func (c *WebSearchClient) fetchTextContent(ctx context.Context, targetURL string) (string, error) {
+	// SSRF protection: validate target host before connecting
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		return "", fmt.Errorf("无效的 URL: %w", err)
+	}
+	if !c.allowLocalAddresses {
+		if err := validateURLHost(parsedURL); err != nil {
+			return "", fmt.Errorf("URL 安全检查失败: %w", err)
+		}
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", targetURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("创建请求失败: %w", err)

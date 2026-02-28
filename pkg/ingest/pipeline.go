@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -69,6 +70,9 @@ type Pipeline struct {
 	// Flow aggregation (single goroutine access)
 	flows     map[string]*model.Flow
 	flowMu    sync.Mutex
+
+	// File offset tracking for raw packet access
+	fileOffset int64
 }
 
 // New creates a new ingest pipeline.
@@ -134,6 +138,12 @@ func (p *Pipeline) Run() (*Result, error) {
 	// Start capture
 	packetChan := capturer.Start()
 
+	// Initialize file offset tracking for pcap files (not pcapng)
+	// pcap format: 24-byte global header, then per-packet: 16-byte record header + data
+	if !strings.HasSuffix(p.cfg.PcapPath, ".pcapng") {
+		p.fileOffset = 24 // pcap global header size
+	}
+
 	// Setup channels
 	decodeChan := make(chan *model.PacketSummary, p.cfg.BatchSize*2)
 	errChan := make(chan error, 1)
@@ -164,6 +174,13 @@ func (p *Pipeline) Run() (*Result, error) {
 
 		// Convert capture.PacketInfo to model.PacketSummary
 		summary := p.convertPacket(&pkt, packetNumber)
+
+		// Track file offset for raw packet access (pcap only, not pcapng)
+		if p.fileOffset > 0 {
+			summary.Evidence.FileOffset = p.fileOffset
+			// Advance past pcap record header (16 bytes) + captured packet data
+			p.fileOffset += 16 + int64(pkt.CaptureLength)
+		}
 		
 		// Update flow aggregation
 		p.updateFlow(summary)
@@ -251,7 +268,7 @@ func (p *Pipeline) convertPacket(pkt *capture.PacketInfo, number int) *model.Pac
 		Number:        number,
 		TimestampNS:   pkt.Timestamp.UnixNano(),
 		Length:        pkt.Length,
-		CaptureLength: pkt.Length,
+		CaptureLength: pkt.CaptureLength,
 		SrcMAC:        pkt.SrcMAC,
 		DstMAC:        pkt.DstMAC,
 		SrcIP:         pkt.SrcIP,

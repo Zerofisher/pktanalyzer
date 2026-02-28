@@ -18,6 +18,7 @@ type PacketInfo struct {
 	Number        int
 	Timestamp     time.Time
 	Length        int
+	CaptureLength int
 	SrcMAC        string
 	DstMAC        string
 	EtherType     string
@@ -164,10 +165,11 @@ func (c *Capturer) captureLoop() {
 
 func (c *Capturer) parsePacket(packet gopacket.Packet) PacketInfo {
 	info := PacketInfo{
-		Timestamp: packet.Metadata().Timestamp,
-		Length:    packet.Metadata().Length,
-		RawData:   packet.Data(),
-		Layers:    make([]LayerInfo, 0),
+		Timestamp:     packet.Metadata().Timestamp,
+		Length:        packet.Metadata().Length,
+		CaptureLength: packet.Metadata().CaptureLength,
+		RawData:       packet.Data(),
+		Layers:        make([]LayerInfo, 0),
 	}
 
 	// Parse Ethernet

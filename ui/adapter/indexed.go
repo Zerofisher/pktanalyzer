@@ -3,6 +3,9 @@ package uiadapter
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/pkg/model"
@@ -89,9 +92,44 @@ func (s *IndexedStore) GetRange(offset, limit int) []*DisplayPacket {
 }
 
 func (s *IndexedStore) GetRaw(number int) ([]byte, error) {
-	// TODO: Implement raw packet reading from pcap file using file offset
-	// The offset is stored in PacketSummary.Evidence.FileOffset
-	return nil, fmt.Errorf("raw packet reading not implemented yet")
+	// Look up packet to get evidence
+	ctx := context.Background()
+	pkt, err := s.engine.GetPacket(ctx, number)
+	if err != nil {
+		return nil, fmt.Errorf("get packet %d: %w", number, err)
+	}
+
+	if pkt.Evidence.FilePath == "" {
+		return nil, fmt.Errorf("no file path for packet %d", number)
+	}
+	if pkt.Evidence.FileOffset <= 0 {
+		return nil, fmt.Errorf("no file offset for packet %d (indexed before offset tracking)", number)
+	}
+
+	// Detect pcapng by extension — offset tracking is not reliable for pcapng
+	if strings.HasSuffix(pkt.Evidence.FilePath, ".pcapng") {
+		return nil, fmt.Errorf("raw read not supported for pcapng files")
+	}
+
+	// Open pcap file and seek to packet data
+	f, err := os.Open(pkt.Evidence.FilePath)
+	if err != nil {
+		return nil, fmt.Errorf("open pcap: %w", err)
+	}
+	defer f.Close()
+
+	// FileOffset points to pcap record header (16 bytes), skip it to get to data
+	dataOffset := pkt.Evidence.FileOffset + 16
+	if _, err := f.Seek(dataOffset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("seek to packet data: %w", err)
+	}
+
+	buf := make([]byte, pkt.CaptureLength)
+	if _, err := io.ReadFull(f, buf); err != nil {
+		return nil, fmt.Errorf("read packet data: %w", err)
+	}
+
+	return buf, nil
 }
 
 // --- Agent interface (PacketReader) ---

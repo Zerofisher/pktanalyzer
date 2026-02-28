@@ -205,8 +205,14 @@ done:
 	// Update metadata
 	result.TotalPackets = int(p.processed.Load())
 	result.TotalBytes = p.totalBytes.Load()
-	result.TotalFlows = len(p.flows)
 	result.Duration = time.Since(startTime)
+
+	// Query DB for accurate flow count (avoids double-counting across flush boundaries)
+	var flowCount int
+	if err := p.store.DB().QueryRow("SELECT COUNT(*) FROM flows").Scan(&flowCount); err != nil {
+		return nil, fmt.Errorf("count flows: %w", err)
+	}
+	result.TotalFlows = flowCount
 
 	// Save metadata
 	indexMeta := &model.IndexMeta{

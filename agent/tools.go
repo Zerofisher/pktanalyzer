@@ -10,33 +10,13 @@ import (
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
 	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/internal/format"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
-
-// PacketReader provides read-only access to packet data.
-// This interface allows ToolExecutor to read from a shared data source
-// without maintaining its own copy. Implementations include:
-//   - uiadapter.MemoryStore (live capture)
-//   - uiadapter.IndexedStore (file analysis)
-type PacketReader interface {
-	// Count returns the total number of packets.
-	Count() int
-
-	// GetRange returns packets in the given range (0-based offset, limit).
-	// Returns packets as capture.PacketInfo for tool processing.
-	GetPacketsForAgent(offset, limit int) []capture.PacketInfo
-
-	// GetPacket returns a single packet by number (1-based).
-	// Returns nil if not found.
-	GetPacketForAgent(number int) *capture.PacketInfo
-
-	// GetRaw returns raw packet bytes by number (1-based).
-	GetRaw(number int) ([]byte, error)
-}
 
 // ToolExecutor handles tool execution with security constraints
 type ToolExecutor struct {
 	capturer     *capture.Capturer
-	packetReader PacketReader // Shared packet data source
+	packetReader uiadapter.PacketReadStore // Shared packet data source
 
 	// Security configuration
 	redactConfig  *RedactConfig
@@ -62,7 +42,7 @@ func NewToolExecutor() *ToolExecutor {
 }
 
 // SetPacketReader sets the packet data source for the executor.
-func (t *ToolExecutor) SetPacketReader(reader PacketReader) {
+func (t *ToolExecutor) SetPacketReader(reader uiadapter.PacketReadStore) {
 	t.packetReader = reader
 }
 
@@ -133,7 +113,12 @@ func (t *ToolExecutor) GetPackets() []capture.PacketInfo {
 	if count == 0 {
 		return nil
 	}
-	return t.packetReader.GetPacketsForAgent(0, count)
+	packets := t.packetReader.GetRange(0, count)
+	result := make([]capture.PacketInfo, len(packets))
+	for i, p := range packets {
+		result[i] = uiadapter.ConvertToPacketInfo(p)
+	}
+	return result
 }
 
 // GetPacket returns a single packet by number from the shared data source.
@@ -141,7 +126,12 @@ func (t *ToolExecutor) GetPacket(number int) *capture.PacketInfo {
 	if t.packetReader == nil {
 		return nil
 	}
-	return t.packetReader.GetPacketForAgent(number)
+	dp := t.packetReader.Get(number)
+	if dp == nil {
+		return nil
+	}
+	pkt := uiadapter.ConvertToPacketInfo(dp)
+	return &pkt
 }
 
 // GetPacketCount returns the number of packets available.

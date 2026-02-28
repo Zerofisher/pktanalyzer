@@ -113,46 +113,6 @@ func (s *MemoryStore) GetRaw(number int) ([]byte, error) {
 	return nil, nil
 }
 
-// --- Agent interface (PacketReader) ---
-
-// GetPacketsForAgent returns packets as capture.PacketInfo for agent tools.
-func (s *MemoryStore) GetPacketsForAgent(offset, limit int) []capture.PacketInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if offset < 0 {
-		offset = 0
-	}
-	if offset >= len(s.packets) {
-		return nil
-	}
-
-	end := offset + limit
-	if end > len(s.packets) {
-		end = len(s.packets)
-	}
-
-	result := make([]capture.PacketInfo, 0, end-offset)
-	for _, p := range s.packets[offset:end] {
-		result = append(result, ConvertToPacketInfo(p))
-	}
-	return result
-}
-
-// GetPacketForAgent returns a single packet as capture.PacketInfo for agent tools.
-func (s *MemoryStore) GetPacketForAgent(number int) *capture.PacketInfo {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, p := range s.packets {
-		if p.Number == number {
-			pkt := ConvertToPacketInfo(p)
-			return &pkt
-		}
-	}
-	return nil
-}
-
 // ConvertToPacketInfo converts DisplayPacket to capture.PacketInfo.
 func ConvertToPacketInfo(p *DisplayPacket) capture.PacketInfo {
 	// If we have the original RawPacketInfo, return it directly

@@ -15,6 +15,7 @@ import (
 	"github.com/Zerofisher/pktanalyzer/agent/react"
 	"github.com/Zerofisher/pktanalyzer/agent/tracing"
 	"github.com/Zerofisher/pktanalyzer/capture"
+	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 
 //go:embed prompts/system.md
@@ -72,7 +73,7 @@ func (a *Agent) SetCapturer(c *capture.Capturer) {
 
 // SetPacketReader sets the packet data source for the agent.
 // This should be called after creating the agent to provide packet access.
-func (a *Agent) SetPacketReader(reader PacketReader) {
+func (a *Agent) SetPacketReader(reader uiadapter.PacketReadStore) {
 	a.toolExecutor.SetPacketReader(reader)
 }
 

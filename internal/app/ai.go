@@ -13,7 +13,7 @@ import (
 // AIConfig holds AI agent configuration.
 type AIConfig struct {
 	Capturer     *capture.Capturer  // Optional: set for live/non-indexed mode
-	PacketReader agent.PacketReader // Required: packet reader for queries
+	PacketReader uiadapter.PacketReadStore // Required: packet reader for queries
 }
 
 // SetupAI initializes the AI agent.

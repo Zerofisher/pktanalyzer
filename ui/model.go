@@ -52,7 +52,7 @@ type Model struct {
 	filterActive bool
 
 	// Stats (computed from store or captured)
-	stats  Stats
+	stats  *uiadapter.Stats
 	isLive bool
 	paused bool
 
@@ -96,104 +96,6 @@ type Model struct {
 	expertMinSeverity expert.Severity // Minimum severity to show
 }
 
-// Stats holds packet statistics
-type Stats struct {
-	Total     int
-	TCP       int
-	UDP       int
-	ICMP      int
-	ARP       int
-	DNS       int
-	HTTP      int
-	HTTPS     int
-	TLS       int
-	Decrypted int
-	Other     int
-	IPv4      int
-	IPv6      int
-	Streams   int
-}
-
-func (s *Stats) Update(p *uiadapter.DisplayPacket) {
-	s.Total++
-	switch p.Protocol {
-	case "TCP":
-		s.TCP++
-	case "UDP":
-		s.UDP++
-	case "ICMP", "ICMPv6":
-		s.ICMP++
-	case "ARP":
-		s.ARP++
-	case "DNS":
-		s.DNS++
-	case "HTTP":
-		s.HTTP++
-	case "HTTPS":
-		s.HTTPS++
-		if p.Decrypted {
-			s.Decrypted++
-		}
-	case "TLS":
-		s.TLS++
-	default:
-		s.Other++
-	}
-
-	if p.SrcIP != "" {
-		if len(p.SrcIP) > 15 || containsColon(p.SrcIP) {
-			s.IPv6++
-		} else {
-			s.IPv4++
-		}
-	}
-}
-
-// UpdateFromPacketInfo updates stats from capture.PacketInfo (for live mode).
-func (s *Stats) UpdateFromPacketInfo(p capture.PacketInfo) {
-	s.Total++
-	switch p.Protocol {
-	case "TCP":
-		s.TCP++
-	case "UDP":
-		s.UDP++
-	case "ICMP", "ICMPv6":
-		s.ICMP++
-	case "ARP":
-		s.ARP++
-	case "DNS":
-		s.DNS++
-	case "HTTP":
-		s.HTTP++
-	case "HTTPS":
-		s.HTTPS++
-		if p.Decrypted {
-			s.Decrypted++
-		}
-	case "TLS":
-		s.TLS++
-	default:
-		s.Other++
-	}
-
-	if p.SrcIP != "" {
-		if len(p.SrcIP) > 15 || containsColon(p.SrcIP) {
-			s.IPv6++
-		} else {
-			s.IPv4++
-		}
-	}
-}
-
-func containsColon(s string) bool {
-	for _, c := range s {
-		if c == ':' {
-			return true
-		}
-	}
-	return false
-}
-
 // NewModel creates a new model for live capture mode.
 // The store should be a MemoryStore that will receive packets.
 func NewModel(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketInfo, capturer *capture.Capturer, isLive bool) Model {
@@ -215,6 +117,7 @@ func NewModel(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketI
 		capturer:          capturer,
 		viewMode:          ViewList,
 		isLive:            isLive,
+		stats:             uiadapter.NewStats(),
 		chatMessages:      make([]ChatMessage, 0),
 		chatTextInput:     chatTi,
 		filterTextInput:   filterTi,
@@ -242,6 +145,7 @@ func NewModelWithStore(store uiadapter.PacketReadStore) Model {
 		store:             store,
 		viewMode:          ViewList,
 		isLive:            store.IsLive(),
+		stats:             uiadapter.NewStats(),
 		chatMessages:      make([]ChatMessage, 0),
 		chatTextInput:     chatTi,
 		filterTextInput:   filterTi,

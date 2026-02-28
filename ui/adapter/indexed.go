@@ -16,7 +16,7 @@ import (
 // It implements PacketReadStore, PacketFilterStore, FlowQueryable, and EventQueryable.
 // It provides efficient access to large pcap files without loading everything into memory.
 type IndexedStore struct {
-	engine   *query.SQLiteEngine
+	engine   query.QueryEngine
 	store    *sqlite.SQLiteStore
 	pcapPath string
 

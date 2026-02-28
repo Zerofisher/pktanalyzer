@@ -59,7 +59,7 @@ type EventSummary struct {
 }
 
 // Generate creates a report from the query engine.
-func Generate(ctx context.Context, engine *query.SQLiteEngine) (*Data, error) {
+func Generate(ctx context.Context, engine query.QueryEngine) (*Data, error) {
 	report := &Data{
 		GeneratedAt: time.Now(),
 	}

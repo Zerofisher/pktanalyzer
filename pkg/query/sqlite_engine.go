@@ -19,6 +19,8 @@ type SQLiteEngine struct {
 	pcapPath string
 }
 
+var _ QueryEngine = (*SQLiteEngine)(nil)
+
 // NewSQLiteEngine creates a new SQLite-backed query engine.
 func NewSQLiteEngine(store *sqlite.SQLiteStore, pcapPath string) *SQLiteEngine {
 	return &SQLiteEngine{

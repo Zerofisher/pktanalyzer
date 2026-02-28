@@ -31,7 +31,7 @@ type ChatMessage struct {
 
 // Model holds the application state
 type Model struct {
-	// PacketStore is the unified data source for packets
+	// PacketReadStore is the unified data source for packets
 	store uiadapter.PacketReadStore
 
 	// View state
@@ -224,7 +224,7 @@ func NewModel(store uiadapter.PacketReadStore, packetChan <-chan capture.PacketI
 	}
 }
 
-// NewModelWithStore creates a new model from a PacketStore (for indexed mode).
+// NewModelWithStore creates a new model from a PacketReadStore (for indexed mode).
 func NewModelWithStore(store uiadapter.PacketReadStore) Model {
 	// Initialize chat text input
 	chatTi := textinput.New()

@@ -12,10 +12,9 @@ const (
 	DefaultMaxPackets = 100000
 )
 
-// MemoryStore is a PacketStore implementation that keeps packets in memory.
-// It uses a ring buffer to limit memory usage for live capture scenarios.
-//
-// Thread-safe for concurrent read/write access.
+// MemoryStore keeps packets in memory for live capture scenarios.
+// It implements PacketReadStore, PacketFilterStore, and PacketAppendStore.
+// Uses a ring buffer to limit memory usage. Thread-safe for concurrent access.
 type MemoryStore struct {
 	mu         sync.RWMutex
 	packets    []*DisplayPacket

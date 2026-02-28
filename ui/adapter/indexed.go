@@ -13,10 +13,9 @@ import (
 	"github.com/Zerofisher/pktanalyzer/pkg/store/sqlite"
 )
 
-// IndexedStore is a PacketStore implementation that reads from SQLite index.
+// IndexedStore provides read-only access to packets indexed in SQLite.
+// It implements PacketReadStore, PacketFilterStore, FlowQueryable, and EventQueryable.
 // It provides efficient access to large pcap files without loading everything into memory.
-//
-// This replaces the old IndexedProvider and implements the PacketStore interface.
 type IndexedStore struct {
 	engine   *query.SQLiteEngine
 	store    *sqlite.SQLiteStore

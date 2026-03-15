@@ -159,21 +159,21 @@ type Overview struct {
 	IndexVersion string
 
 	// Capture info
-	StartTime       time.Time
-	EndTime         time.Time
-	Duration        time.Duration
-	TotalPackets    int
-	TotalBytes      int64
-	AvgPacketSize   float64
-	PacketsPerSec   float64
-	BytesPerSec     float64
+	StartTime     time.Time
+	EndTime       time.Time
+	Duration      time.Duration
+	TotalPackets  int
+	TotalBytes    int64
+	AvgPacketSize float64
+	PacketsPerSec float64
+	BytesPerSec   float64
 
 	// Protocol distribution
 	TopProtocols []*ProtocolStat
 
 	// Flow info
-	TotalFlows    int
-	ActiveFlows   int
+	TotalFlows     int
+	ActiveFlows    int
 	CompletedFlows int
 
 	// Expert events summary

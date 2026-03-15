@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/expert"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/expert"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 
 	"github.com/charmbracelet/bubbles/textinput"

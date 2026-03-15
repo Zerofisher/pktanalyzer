@@ -194,4 +194,3 @@ func (s *IndexedStore) GetExpertEvents(minSeverity int) ([]*model.ExpertEvent, e
 func (s *IndexedStore) Close() error {
 	return s.store.Close()
 }
-

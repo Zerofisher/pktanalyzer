@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/internal/format"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // Manager collects and reports various traffic statistics
@@ -318,7 +318,6 @@ func isUDP(proto string) bool {
 	}
 	return false
 }
-
 
 func formatDuration(d time.Duration) string {
 	if d < time.Second {

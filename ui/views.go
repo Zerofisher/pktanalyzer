@@ -6,9 +6,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/internal/format"
-	"github.com/Zerofisher/pktanalyzer/stream"
+	"github.com/Zerofisher/pktanalyzer/pkg/expert"
+	"github.com/Zerofisher/pktanalyzer/pkg/stream"
 )
 
 func (m Model) renderPacketList() string {
@@ -713,7 +713,6 @@ func isHTTPData(data []byte) bool {
 	}
 	return false
 }
-
 
 func truncateStr(s string, maxLen int) string {
 	if maxLen <= 0 {

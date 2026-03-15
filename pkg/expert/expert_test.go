@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 func TestTCPRetransmission(t *testing.T) {

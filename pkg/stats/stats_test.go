@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/internal/format"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // ---------------------------------------------------------------------------

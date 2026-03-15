@@ -16,11 +16,11 @@ import (
 // EvidenceRef points back to raw evidence in the original pcap file.
 // This allows AI/reports to cite specific packets without storing raw bytes.
 type EvidenceRef struct {
-	PcapFile      string    `json:"pcap_file,omitempty"`       // Source pcap filename
-	PacketNumbers []int     `json:"packet_numbers,omitempty"`  // Related packet numbers (1-based, Wireshark style)
-	FlowID        string    `json:"flow_id,omitempty"`         // Related flow identifier
-	StreamID      int       `json:"stream_id,omitempty"`       // TCP stream index (if applicable)
-	TimeRange     TimeRange `json:"time_range,omitempty"`      // Time window of the evidence
+	PcapFile      string    `json:"pcap_file,omitempty"`      // Source pcap filename
+	PacketNumbers []int     `json:"packet_numbers,omitempty"` // Related packet numbers (1-based, Wireshark style)
+	FlowID        string    `json:"flow_id,omitempty"`        // Related flow identifier
+	StreamID      int       `json:"stream_id,omitempty"`      // TCP stream index (if applicable)
+	TimeRange     TimeRange `json:"time_range,omitempty"`     // Time window of the evidence
 }
 
 // TimeRange represents a time window.
@@ -56,7 +56,7 @@ type PacketSummary struct {
 	TTL       int    `json:"ttl,omitempty"`
 
 	// Layer 4
-	Protocol  string `json:"protocol"`           // TCP, UDP, ICMP, etc.
+	Protocol  string `json:"protocol"` // TCP, UDP, ICMP, etc.
 	SrcPort   int    `json:"src_port,omitempty"`
 	DstPort   int    `json:"dst_port,omitempty"`
 	TCPFlags  uint16 `json:"tcp_flags,omitempty"`
@@ -263,26 +263,26 @@ func (s Severity) Order() int {
 type EventGroup string
 
 const (
-	GroupTCP       EventGroup = "tcp"
-	GroupDNS       EventGroup = "dns"
-	GroupHTTP      EventGroup = "http"
-	GroupTLS       EventGroup = "tls"
-	GroupSecurity  EventGroup = "security"
+	GroupTCP         EventGroup = "tcp"
+	GroupDNS         EventGroup = "dns"
+	GroupHTTP        EventGroup = "http"
+	GroupTLS         EventGroup = "tls"
+	GroupSecurity    EventGroup = "security"
 	GroupPerformance EventGroup = "performance"
 )
 
 // ExpertEvent represents a detected anomaly, warning, or informational note.
 type ExpertEvent struct {
-	ID        string     `json:"id"`
-	Severity  Severity   `json:"severity"`
-	Group     EventGroup `json:"group"`
-	Type      string     `json:"type"`      // e.g., "tcp_retransmission", "dns_nxdomain"
-	Message   string     `json:"message"`   // Human-readable description
-	TimestampNS int64    `json:"timestamp_ns"`
+	ID          string     `json:"id"`
+	Severity    Severity   `json:"severity"`
+	Group       EventGroup `json:"group"`
+	Type        string     `json:"type"`    // e.g., "tcp_retransmission", "dns_nxdomain"
+	Message     string     `json:"message"` // Human-readable description
+	TimestampNS int64      `json:"timestamp_ns"`
 
 	// Context
-	FlowID    string `json:"flow_id,omitempty"`
-	Summary   string `json:"summary,omitempty"` // Brief context for AI
+	FlowID  string `json:"flow_id,omitempty"`
+	Summary string `json:"summary,omitempty"` // Brief context for AI
 
 	// Evidence packet range
 	PacketStart int `json:"packet_start"`

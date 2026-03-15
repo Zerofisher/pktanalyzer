@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/expert"
-	"github.com/Zerofisher/pktanalyzer/stream"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/expert"
+	"github.com/Zerofisher/pktanalyzer/pkg/stream"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -83,8 +83,8 @@ type Model struct {
 	aiStreamingMsgID int                          // Index of the message being streamed (-1 if none)
 
 	// Authorization confirmation dialog
-	showConfirmDialog   bool                            // Whether to show confirmation dialog
-	pendingConfirmation *uiadapter.ConfirmationRequest  // Current pending confirmation
+	showConfirmDialog   bool                           // Whether to show confirmation dialog
+	pendingConfirmation *uiadapter.ConfirmationRequest // Current pending confirmation
 
 	// Status message (for save operations, etc.)
 	statusMessage string

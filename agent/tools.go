@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Zerofisher/pktanalyzer/agent/llm"
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/internal/format"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 
@@ -1398,7 +1398,6 @@ func sortMapByValue(m map[string]int) []keyValue {
 	})
 	return sorted
 }
-
 
 func parsePort(s string) uint16 {
 	var port uint16

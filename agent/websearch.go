@@ -25,10 +25,10 @@ const (
 	MaxResponseBody     = 1 << 20 // 1MB max response size
 
 	// Content fetching constants
-	MaxRFCContentChars = 16000 // RFC content max characters
-	MaxURLContentChars = 8000  // URL content max characters
-	DefaultContentChars = 8000 // Default content characters
-	FetchTimeout        = 30   // Fetch timeout in seconds
+	MaxRFCContentChars  = 16000   // RFC content max characters
+	MaxURLContentChars  = 8000    // URL content max characters
+	DefaultContentChars = 8000    // Default content characters
+	FetchTimeout        = 30      // Fetch timeout in seconds
 	MaxFetchBody        = 2 << 20 // 2MB max fetch body
 )
 

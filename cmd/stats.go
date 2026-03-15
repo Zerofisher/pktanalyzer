@@ -5,10 +5,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/expert"
 	"github.com/Zerofisher/pktanalyzer/internal/app"
-	"github.com/Zerofisher/pktanalyzer/stats"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/expert"
+	"github.com/Zerofisher/pktanalyzer/pkg/stats"
 	"github.com/spf13/cobra"
 )
 

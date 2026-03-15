@@ -3,7 +3,7 @@ package uiadapter
 import (
 	"sync"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 	"github.com/Zerofisher/pktanalyzer/pkg/query"
 )
 

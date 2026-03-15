@@ -36,17 +36,17 @@ type Data struct {
 
 // FlowSummary is a simplified flow for display.
 type FlowSummary struct {
-	ID        string
-	SrcIP     string
-	DstIP     string
-	SrcPort   int
-	DstPort   int
-	Protocol  string
-	Packets   int
-	Bytes     int64
-	BytesStr  string
-	Duration  string
-	SNI       string
+	ID       string
+	SrcIP    string
+	DstIP    string
+	SrcPort  int
+	DstPort  int
+	Protocol string
+	Packets  int
+	Bytes    int64
+	BytesStr string
+	Duration string
+	SNI      string
 }
 
 // EventSummary is a simplified event for display.

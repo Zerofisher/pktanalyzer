@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // helper: build a minimal PacketInfo for frame-level tests.

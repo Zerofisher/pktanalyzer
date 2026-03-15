@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 	"github.com/Zerofisher/pktanalyzer/pkg/model"
 	"github.com/Zerofisher/pktanalyzer/pkg/store"
 	"github.com/Zerofisher/pktanalyzer/pkg/store/sqlite"
@@ -64,12 +64,12 @@ type Pipeline struct {
 	cancel context.CancelFunc
 
 	// State
-	processed atomic.Int64
+	processed  atomic.Int64
 	totalBytes atomic.Int64
 
 	// Flow aggregation (single goroutine access)
-	flows     map[string]*model.Flow
-	flowMu    sync.Mutex
+	flows  map[string]*model.Flow
+	flowMu sync.Mutex
 
 	// File offset tracking for raw packet access
 	fileOffset int64
@@ -181,7 +181,7 @@ func (p *Pipeline) Run() (*Result, error) {
 			// Advance past pcap record header (16 bytes) + captured packet data
 			p.fileOffset += 16 + int64(pkt.CaptureLength)
 		}
-		
+
 		// Update flow aggregation
 		p.updateFlow(summary)
 

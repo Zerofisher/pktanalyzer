@@ -51,4 +51,5 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	rootCmd.AddCommand(followCmd)
 	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(serveCmd)
 }

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/stream"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/stream"
 	"github.com/spf13/cobra"
 )
 

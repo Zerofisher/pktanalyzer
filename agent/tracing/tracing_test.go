@@ -47,9 +47,9 @@ func TestTruncate(t *testing.T) {
 		{"one over", "abcd", 3, "abc..."},
 		// Multi-byte UTF-8 tests - Chinese characters are 3 bytes each
 		{"Chinese no truncate", "你好", 10, "你好"},
-		{"Chinese truncate at boundary", "你好世界", 6, "你好..."},       // 6 bytes = 2 chars
-		{"Chinese partial byte limit", "你好世界", 4, "你..."},          // 4 bytes can only fit 1 char (3 bytes)
-		{"Mixed ASCII and Chinese", "Hi你好", 5, "Hi你..."},            // "Hi" (2 bytes) + "你" (3 bytes) = 5 bytes
+		{"Chinese truncate at boundary", "你好世界", 6, "你好..."}, // 6 bytes = 2 chars
+		{"Chinese partial byte limit", "你好世界", 4, "你..."},    // 4 bytes can only fit 1 char (3 bytes)
+		{"Mixed ASCII and Chinese", "Hi你好", 5, "Hi你..."},     // "Hi" (2 bytes) + "你" (3 bytes) = 5 bytes
 	}
 
 	for _, tt := range tests {

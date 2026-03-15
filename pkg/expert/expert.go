@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // Analyzer is the main expert analysis engine

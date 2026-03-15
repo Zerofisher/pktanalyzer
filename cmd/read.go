@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/export"
 	"github.com/Zerofisher/pktanalyzer/internal/app"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/export"
 	"github.com/Zerofisher/pktanalyzer/pkg/ingest"
 	"github.com/Zerofisher/pktanalyzer/ui"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"

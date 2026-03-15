@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/filter"
-	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/Zerofisher/pktanalyzer/tls"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/filter"
+	"github.com/Zerofisher/pktanalyzer/pkg/stream"
+	"github.com/Zerofisher/pktanalyzer/pkg/tls"
 )
 
 // CaptureConfig holds unified capture configuration.

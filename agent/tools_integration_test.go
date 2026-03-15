@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // TestGetStatisticsFirst tests that get_statistics provides good overview

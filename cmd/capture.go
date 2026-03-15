@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
 	"github.com/Zerofisher/pktanalyzer/internal/app"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 	"github.com/Zerofisher/pktanalyzer/ui"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 	"github.com/spf13/cobra"

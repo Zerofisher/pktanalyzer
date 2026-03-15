@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // TCPAnalysisContext maintains state for TCP sequence analysis

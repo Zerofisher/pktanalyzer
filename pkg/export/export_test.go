@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // testTimestamp is a fixed timestamp used across all tests for deterministic output.

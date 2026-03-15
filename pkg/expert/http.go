@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // HTTPAnalysisContext maintains state for HTTP analysis

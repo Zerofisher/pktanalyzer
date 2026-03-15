@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
-	"github.com/Zerofisher/pktanalyzer/fields"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/fields"
 )
 
 // OutputFormat represents the output format type

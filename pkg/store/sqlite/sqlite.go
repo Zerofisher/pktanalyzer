@@ -23,10 +23,10 @@ type Config struct {
 	// Path to the SQLite database file.
 	// If empty, defaults to <pcapfile>.idx.db
 	DBPath string
-	
+
 	// ReadOnly opens the database in read-only mode.
 	ReadOnly bool
-	
+
 	// WAL enables WAL mode for better concurrency.
 	WAL bool
 }
@@ -36,7 +36,7 @@ type SQLiteStore struct {
 	db   *sql.DB
 	path string
 	cfg  Config
-	
+
 	// Write transaction state
 	mu    sync.Mutex
 	tx    *sql.Tx
@@ -50,7 +50,7 @@ func New(cfg Config) (*SQLiteStore, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("create db directory: %w", err)
 	}
-	
+
 	// Build DSN
 	dsn := cfg.DBPath
 	params := "?_foreign_keys=on"
@@ -61,24 +61,24 @@ func New(cfg Config) (*SQLiteStore, error) {
 		params += "&_journal_mode=WAL"
 	}
 	dsn += params
-	
+
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	
+
 	// Set connection pool (single writer is best practice for SQLite)
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(0)
-	
+
 	s := &SQLiteStore{
 		db:    db,
 		path:  cfg.DBPath,
 		cfg:   cfg,
 		stmts: make(map[string]*sql.Stmt),
 	}
-	
+
 	// Initialize schema
 	if !cfg.ReadOnly {
 		if err := s.initSchema(); err != nil {
@@ -86,7 +86,7 @@ func New(cfg Config) (*SQLiteStore, error) {
 			return nil, fmt.Errorf("init schema: %w", err)
 		}
 	}
-	
+
 	return s, nil
 }
 
@@ -230,12 +230,12 @@ CREATE INDEX IF NOT EXISTS idx_expert_severity ON expert_events(severity);
 CREATE INDEX IF NOT EXISTS idx_expert_flow ON expert_events(flow_id);
 CREATE INDEX IF NOT EXISTS idx_expert_type ON expert_events(type);
 `
-	
+
 	_, err := s.db.Exec(schema)
 	if err != nil {
 		return fmt.Errorf("execute schema: %w", err)
 	}
-	
+
 	// Set schema version
 	_, err = s.db.Exec(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`,
 		"schema_version", fmt.Sprintf("%d", schemaVersion))
@@ -249,13 +249,13 @@ CREATE INDEX IF NOT EXISTS idx_expert_type ON expert_events(type);
 // GetMeta retrieves the index metadata.
 func (s *SQLiteStore) GetMeta() (*model.IndexMeta, error) {
 	meta := &model.IndexMeta{}
-	
+
 	rows, err := s.db.Query(`SELECT key, value FROM meta`)
 	if err != nil {
 		return nil, fmt.Errorf("query meta: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var key, value string
 		if err := rows.Scan(&key, &value); err != nil {
@@ -284,7 +284,7 @@ func (s *SQLiteStore) GetMeta() (*model.IndexMeta, error) {
 			meta.IndexComplete = value == "true"
 		}
 	}
-	
+
 	return meta, rows.Err()
 }
 
@@ -295,13 +295,13 @@ func (s *SQLiteStore) SetMeta(meta *model.IndexMeta) error {
 		return err
 	}
 	defer tx.Rollback()
-	
+
 	stmt, err := tx.Prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	
+
 	pairs := []struct{ k, v string }{
 		{"schema_version", fmt.Sprintf("%d", meta.SchemaVersion)},
 		{"pcap_path", meta.PcapPath},
@@ -313,13 +313,13 @@ func (s *SQLiteStore) SetMeta(meta *model.IndexMeta) error {
 		{"duration_ns", fmt.Sprintf("%d", meta.DurationNS)},
 		{"index_complete", fmt.Sprintf("%t", meta.IndexComplete)},
 	}
-	
+
 	for _, p := range pairs {
 		if _, err := stmt.Exec(p.k, p.v); err != nil {
 			return err
 		}
 	}
-	
+
 	return tx.Commit()
 }
 
@@ -334,7 +334,7 @@ func (s *SQLiteStore) BeginBatch() error {
 		s.mu.Unlock()
 		return fmt.Errorf("batch already in progress")
 	}
-	
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		s.mu.Unlock()
@@ -350,17 +350,17 @@ func (s *SQLiteStore) BeginBatch() error {
 func (s *SQLiteStore) CommitBatch() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return fmt.Errorf("no batch in progress")
 	}
-	
+
 	// Close prepared statements
 	for _, stmt := range s.stmts {
 		stmt.Close()
 	}
 	s.stmts = nil
-	
+
 	err := s.tx.Commit()
 	s.tx = nil
 	return err
@@ -370,16 +370,16 @@ func (s *SQLiteStore) CommitBatch() error {
 func (s *SQLiteStore) RollbackBatch() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return nil
 	}
-	
+
 	for _, stmt := range s.stmts {
 		stmt.Close()
 	}
 	s.stmts = nil
-	
+
 	err := s.tx.Rollback()
 	s.tx = nil
 	return err
@@ -389,7 +389,7 @@ func (s *SQLiteStore) getStmt(name, query string) (*sql.Stmt, error) {
 	if stmt, ok := s.stmts[name]; ok {
 		return stmt, nil
 	}
-	
+
 	stmt, err := s.tx.Prepare(query)
 	if err != nil {
 		return nil, err
@@ -402,11 +402,11 @@ func (s *SQLiteStore) getStmt(name, query string) (*sql.Stmt, error) {
 func (s *SQLiteStore) InsertPacket(p *model.PacketSummary) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return fmt.Errorf("no batch in progress")
 	}
-	
+
 	const query = `INSERT INTO packets (
 		number, timestamp_ns, length, cap_length,
 		src_mac, dst_mac, eth_type,
@@ -414,12 +414,12 @@ func (s *SQLiteStore) InsertPacket(p *model.PacketSummary) error {
 		src_port, dst_port, tcp_flags, tcp_seq, tcp_ack, tcp_window,
 		protocol, info, flow_id, file_offset, file_path
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	stmt, err := s.getStmt("insert_packet", query)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = stmt.Exec(
 		p.Number, p.TimestampNS, p.Length, p.CaptureLength,
 		p.SrcMAC, p.DstMAC, p.EthType,
@@ -445,14 +445,14 @@ func (s *SQLiteStore) InsertPackets(packets []*model.PacketSummary) error {
 func (s *SQLiteStore) UpsertFlow(f *model.Flow) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return fmt.Errorf("no batch in progress")
 	}
-	
+
 	rttJSON, _ := json.Marshal(f.RTTSamples)
 	metaJSON, _ := json.Marshal(f.Metadata)
-	
+
 	const query = `INSERT INTO flows (
 		id, src_ip, dst_ip, src_port, dst_port, protocol, state,
 		start_ns, end_ns, packets, bytes,
@@ -475,12 +475,12 @@ func (s *SQLiteStore) UpsertFlow(f *model.Flow) error {
 		rtt_min_us = CASE WHEN excluded.rtt_min_us > 0 AND (flows.rtt_min_us = 0 OR excluded.rtt_min_us < flows.rtt_min_us) THEN excluded.rtt_min_us ELSE flows.rtt_min_us END,
 		rtt_max_us = MAX(flows.rtt_max_us, excluded.rtt_max_us),
 		metadata = excluded.metadata`
-	
+
 	stmt, err := s.getStmt("upsert_flow", query)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = stmt.Exec(
 		f.ID, f.SrcIP, f.DstIP, f.SrcPort, f.DstPort, f.Protocol, f.State,
 		f.StartNS, f.EndNS, f.Packets, f.Bytes,
@@ -505,25 +505,25 @@ func (s *SQLiteStore) UpsertFlows(flows []*model.Flow) error {
 func (s *SQLiteStore) InsertTransaction(t *model.Transaction) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return fmt.Errorf("no batch in progress")
 	}
-	
+
 	reqJSON, _ := json.Marshal(t.RequestPackets)
 	respJSON, _ := json.Marshal(t.ResponsePackets)
 	metaJSON, _ := json.Marshal(t.Metadata)
-	
+
 	const query = `INSERT INTO transactions (
 		id, type, flow_id, start_ns, end_ns,
 		request_packets, response_packets, status, latency_us, metadata
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	stmt, err := s.getStmt("insert_transaction", query)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = stmt.Exec(
 		t.ID, t.Type, t.FlowID, t.StartNS, t.EndNS,
 		string(reqJSON), string(respJSON), t.Status, t.LatencyUS,
@@ -536,20 +536,20 @@ func (s *SQLiteStore) InsertTransaction(t *model.Transaction) error {
 func (s *SQLiteStore) InsertExpertEvent(e *model.ExpertEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if s.tx == nil {
 		return fmt.Errorf("no batch in progress")
 	}
-	
+
 	const query = `INSERT INTO expert_events (
 		id, timestamp_ns, severity, grp, type, message, detail, flow_id, packet_start, packet_end
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	stmt, err := s.getStmt("insert_expert", query)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = stmt.Exec(
 		e.ID, e.TimestampNS, e.Severity.Order(), e.Group, e.Type,
 		e.Message, e.Summary, e.FlowID, e.PacketStart, e.PacketEnd,

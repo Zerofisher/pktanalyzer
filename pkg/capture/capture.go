@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/stream"
-	"github.com/Zerofisher/pktanalyzer/tls"
+	"github.com/Zerofisher/pktanalyzer/pkg/stream"
+	"github.com/Zerofisher/pktanalyzer/pkg/tls"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"

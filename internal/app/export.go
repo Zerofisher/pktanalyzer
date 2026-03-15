@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Zerofisher/pktanalyzer/export"
+	"github.com/Zerofisher/pktanalyzer/pkg/export"
 )
 
 // ExportConfig holds export configuration.

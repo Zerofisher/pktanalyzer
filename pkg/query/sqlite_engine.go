@@ -393,8 +393,8 @@ func (e *SQLiteEngine) GetEventSummary(ctx context.Context) (*EventSummary, erro
 
 	// Top events
 	summary.TopEvents, _ = e.GetExpertEvents(ctx, EventFilter{
-		Limit:   10,
-		SortBy:  "severity",
+		Limit:  10,
+		SortBy: "severity",
 	})
 
 	return summary, nil

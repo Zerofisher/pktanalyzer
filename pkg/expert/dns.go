@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 )
 
 // DNSAnalysisContext maintains state for DNS analysis

@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"github.com/Zerofisher/pktanalyzer/capture"
+	"github.com/Zerofisher/pktanalyzer/pkg/capture"
 	uiadapter "github.com/Zerofisher/pktanalyzer/ui/adapter"
 )
 

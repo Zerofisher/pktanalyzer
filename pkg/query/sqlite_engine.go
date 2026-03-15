@@ -79,6 +79,18 @@ func (e *SQLiteEngine) GetPackets(ctx context.Context, filter PacketFilter) ([]*
 		query += " AND (src_ip = ? OR dst_ip = ?)"
 		args = append(args, filter.IP, filter.IP)
 	}
+	if filter.SrcPort > 0 {
+		query += " AND src_port = ?"
+		args = append(args, filter.SrcPort)
+	}
+	if filter.DstPort > 0 {
+		query += " AND dst_port = ?"
+		args = append(args, filter.DstPort)
+	}
+	if filter.Port > 0 {
+		query += " AND (src_port = ? OR dst_port = ?)"
+		args = append(args, filter.Port, filter.Port)
+	}
 	if filter.Protocol != "" {
 		query += " AND protocol = ?"
 		args = append(args, filter.Protocol)

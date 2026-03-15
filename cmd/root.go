@@ -47,5 +47,5 @@ func init() {
 	)
 
 	rootCmd.AddCommand(listCmd)
-	// mcpCmd added in Task 14
+	rootCmd.AddCommand(mcpCmd)
 }

@@ -12,20 +12,23 @@ var Version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:   "pktanalyzer",
-	Short: "Network packet analyzer with TLS decryption and AI",
-	Long: `PktAnalyzer is a powerful network packet analyzer that supports:
+	Short: "MCP server for AI-powered network packet analysis",
+	Long: `PktAnalyzer is an MCP (Model Context Protocol) server that exposes
+network packet analysis capabilities as structured tools for AI agents.
 
-  - Live capture and pcap/pcapng file analysis
+It supports:
+  - Pcap/pcapng file analysis with SQLite indexing
   - TLS traffic decryption via SSLKEYLOGFILE
-  - TCP stream reassembly and following
-  - AI-powered packet analysis assistant
+  - TCP stream reassembly and HTTP following
   - Wireshark-compatible display filters
+  - Field extraction with 100+ protocol fields
+  - Anomaly detection and expert analysis
+
+MCP transports: stdio (default) and SSE.
 
 Examples:
-  pktanalyzer read capture.pcap                    # Open in TUI
-  pktanalyzer read capture.pcap text -c 10         # Print first 10 packets
-  pktanalyzer capture en0                          # Live capture on en0
-  pktanalyzer stats endpoints -r capture.pcap      # Show endpoints
+  pktanalyzer mcp capture.pcap                     # Start MCP server (stdio)
+  pktanalyzer mcp capture.pcap --transport sse     # Start MCP server (SSE)
   pktanalyzer list interfaces                      # List network interfaces`,
 	Version: Version,
 }
@@ -38,18 +41,11 @@ func Execute() {
 }
 
 func init() {
-	// Define command groups for organized help output
 	rootCmd.AddGroup(
-		&cobra.Group{ID: "input", Title: "Input Commands:"},
-		&cobra.Group{ID: "analysis", Title: "Analysis Commands:"},
+		&cobra.Group{ID: "server", Title: "Server Commands:"},
 		&cobra.Group{ID: "info", Title: "Information Commands:"},
 	)
 
-	// Add subcommands
-	rootCmd.AddCommand(readCmd)
-	rootCmd.AddCommand(captureCmd)
-	rootCmd.AddCommand(statsCmd)
-	rootCmd.AddCommand(followCmd)
 	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(serveCmd)
+	// mcpCmd added in Task 14
 }

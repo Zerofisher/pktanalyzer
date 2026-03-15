@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Zerofisher/pktanalyzer/pkg/fields"
 	"github.com/Zerofisher/pktanalyzer/pkg/ingest"
 	"github.com/Zerofisher/pktanalyzer/pkg/query"
 	"github.com/Zerofisher/pktanalyzer/pkg/replay"
@@ -62,6 +63,7 @@ func setupTestContext(t *testing.T) *ToolContext {
 	return &ToolContext{
 		Query:    engine,
 		Replay:   reader,
+		Fields:   fields.NewRegistry(),
 		Security: security.DefaultConfig(),
 		PcapPath: pcapPath,
 	}

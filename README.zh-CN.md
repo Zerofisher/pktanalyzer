@@ -29,11 +29,33 @@
 
 ## 安装
 
-### 前置依赖
+### 下载预编译二进制（推荐）
+
+从 [GitHub Releases](https://github.com/Zerofisher/pktanalyzer/releases) 下载最新版本：
 
 ```bash
-# macOS
-brew install libpcap
+# macOS (Apple Silicon)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_darwin_arm64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_darwin_amd64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# Linux (amd64)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_linux_amd64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# 验证
+pktanalyzer --version
+```
+
+> **注意：** 请将 `v0.1.0` 替换为 Releases 页面上的实际版本号。
+
+### 前置依赖（实时抓包需要）
+
+```bash
+# macOS — libpcap 已包含在 macOS SDK 中，无需额外安装
 
 # Ubuntu/Debian
 sudo apt-get install libpcap-dev
@@ -42,9 +64,10 @@ sudo apt-get install libpcap-dev
 sudo yum install libpcap-devel
 ```
 
-### 编译
+### 从源码编译
 
 ```bash
+# 需要 Go 1.24+ 和 libpcap
 cd pktanalyzer
 go mod tidy
 go build -o pktanalyzer

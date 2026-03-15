@@ -9,10 +9,26 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - runner: macos-latest
+            goos: darwin
+            goarch: arm64
+          - runner: macos-latest
+            goos: darwin
+            goarch: amd64
+    runs-on: ${{ matrix.runner }}
     env:
       GOTOOLCHAIN: auto
+      CGO_ENABLED: "1"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,24 +39,69 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install libpcap
+      - name: Install libpcap (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libpcap-dev
 
       - name: Build binary
         run: |
-          mkdir -p dist
-          go build -o dist/pktanalyzer .
+          VERSION="${GITHUB_REF_NAME}"
+          LDFLAGS="-s -w -X github.com/Zerofisher/pktanalyzer/cmd.Version=${VERSION}"
+          go build -trimpath -ldflags "${LDFLAGS}" -o pktanalyzer .
 
-      - name: Package artifact
+      - name: Smoke test (native arch only)
+        if: >-
+          (matrix.goos == 'linux' && matrix.goarch == 'amd64') ||
+          (matrix.goos == 'darwin' && matrix.goarch == 'arm64')
         run: |
-          ARCHIVE="pktanalyzer_${GITHUB_REF_NAME}_linux_amd64.tar.gz"
-          tar -czf "dist/${ARCHIVE}" -C dist pktanalyzer
-          echo "ARCHIVE_PATH=dist/${ARCHIVE}" >> "$GITHUB_ENV"
+          ./pktanalyzer --version
+
+      - name: Package archive
+        run: |
+          ARCHIVE="pktanalyzer_${GITHUB_REF_NAME}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+          tar -czf "${ARCHIVE}" pktanalyzer
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Generate checksum
+        run: |
+          if command -v sha256sum &>/dev/null; then
+            sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          else
+            shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Generate combined checksums
+        run: |
+          cat *.sha256 > checksums_sha256.txt
+          echo "=== Release checksums ==="
+          cat checksums_sha256.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ARCHIVE_PATH }}
+          generate_release_notes: true
           fail_on_unmatched_files: true
+          files: |
+            pktanalyzer_*.tar.gz
+            checksums_sha256.txt

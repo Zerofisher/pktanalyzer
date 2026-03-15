@@ -29,11 +29,33 @@ An MCP (Model Context Protocol) server for AI-powered network packet analysis, w
 
 ## Installation
 
-### Prerequisites
+### Download Pre-built Binary (Recommended)
+
+Download the latest release from [GitHub Releases](https://github.com/Zerofisher/pktanalyzer/releases):
 
 ```bash
-# macOS
-brew install libpcap
+# macOS (Apple Silicon)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_darwin_arm64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_darwin_amd64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# Linux (amd64)
+curl -L https://github.com/Zerofisher/pktanalyzer/releases/latest/download/pktanalyzer_v0.1.0_linux_amd64.tar.gz | tar xz
+sudo mv pktanalyzer /usr/local/bin/
+
+# Verify
+pktanalyzer --version
+```
+
+> **Note:** Replace `v0.1.0` with the actual version tag from the releases page.
+
+### Prerequisites (for live capture)
+
+```bash
+# macOS — libpcap is included in macOS SDK, no extra install needed
 
 # Ubuntu/Debian
 sudo apt-get install libpcap-dev
@@ -42,9 +64,10 @@ sudo apt-get install libpcap-dev
 sudo yum install libpcap-devel
 ```
 
-### Build
+### Build from Source
 
 ```bash
+# Requires Go 1.24+ and libpcap
 cd pktanalyzer
 go mod tidy
 go build -o pktanalyzer

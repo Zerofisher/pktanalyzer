@@ -187,6 +187,26 @@ Claude: [调用 list_flows，然后 follow_http]
        响应: HTTP/1.1 200 OK Content-Type: text/html ...
 ```
 
+### 安装 Skill（可选）
+
+PktAnalyzer 提供了一个 [Claude Code Skill](./SKILL.md) —— 一份结构化参考文档，帮助 Claude 自动理解全部 18 个 MCP 工具、常见分析工作流和显示过滤器语法。安装后，当你提到网络分析、pcap、Wireshark 等关键词时，Claude 会自动加载该 skill。
+
+**安装方法：**
+
+```bash
+# 复制 skill 到 Claude Code 个人技能目录
+mkdir -p ~/.claude/skills/pktanalyzer
+cp SKILL.md ~/.claude/skills/pktanalyzer/SKILL.md
+```
+
+安装后重启 Claude Code 会话即可生效。当检测到相关关键词（pcap、网络流量、Wireshark、TCP 流等）时，skill 会自动加载。
+
+**手动调用：**
+
+```
+/skill pktanalyzer
+```
+
 ## MCP 工具参考
 
 ### 数据源工具 (4)

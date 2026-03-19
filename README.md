@@ -192,6 +192,26 @@ Claude: [Calls filter_packets, then extract_field for each]
        Packet #1: TTL=64, Packet #3: TTL=64, Packet #5: TTL=64 ...
 ```
 
+### Install Skill (Optional)
+
+PktAnalyzer provides a [Claude Code Skill](./SKILL.md) — a structured reference that helps Claude automatically understand all 18 MCP tools, common analysis workflows, and display filter syntax. With the skill installed, Claude proactively knows how to use pktanalyzer when you mention network analysis, pcap, Wireshark, etc.
+
+**Install:**
+
+```bash
+# Copy skill to Claude Code personal skills directory
+mkdir -p ~/.claude/skills/pktanalyzer
+cp SKILL.md ~/.claude/skills/pktanalyzer/SKILL.md
+```
+
+After installation, restart your Claude Code session. The skill will be auto-loaded when relevant keywords are detected (pcap, network traffic, Wireshark, TCP stream, etc.).
+
+**Manual invocation:**
+
+```
+/skill pktanalyzer
+```
+
 ## MCP Tools Reference
 
 ### Source Tools (4)
